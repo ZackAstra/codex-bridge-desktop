@@ -1,0 +1,53 @@
+{
+  "name": "codex-bridge-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "npm run build:electron && concurrently -k \"node scripts/run-vite.cjs\" \"wait-on tcp:127.0.0.1:5173 && npx electron .\"",
+    "build": "node node_modules/typescript/bin/tsc && vite build && npm run build:electron",
+    "build:electron": "node node_modules/typescript/bin/tsc --project electron/tsconfig.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "build:icon": "node scripts/build-icon.cjs",
+    "test": "vitest run",
+    "test:bridge": "vitest run electron/bridge",
+    "preview": "npm run build && electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^9.2.1",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.0",
+    "vitest": "^3.0.5",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.codex-bridge.desktop",
+    "productName": "Codex Bridge",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist",
+      "dist-electron",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    }
+  }
+}

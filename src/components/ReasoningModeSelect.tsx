@@ -1,0 +1,160 @@
+import { useEffect, useRef, useState } from "react";
+
+export interface ReasoningModeOption {
+  value: string;
+  label: string;
+  summary: string;
+  detail: string;
+}
+
+export const REASONING_MODE_OPTIONS: ReasoningModeOption[] = [
+  {
+    value: "auto",
+    label: "自动推断",
+    summary: "根据 Base URL 与模型名自动选择映射",
+    detail:
+      "对齐 cc-switch 平台/模型规则；不确定时推荐此项。会根据 OpenRouter、DeepSeek、SiliconFlow 等自动推断 thinking 与 effort 参数。",
+  },
+  {
+    value: "passthrough",
+    label: "直通",
+    summary: "effort 原样转发",
+    detail:
+      "适用 OpenAI o 系列 / GPT-5+ / 支持全档位的官方 API。不做 effort 档位映射，直接透传 reasoning.effort。",
+  },
+  {
+    value: "deepseek",
+    label: "DeepSeek",
+    summary: "xhigh/max→max，其余→high",
+    detail:
+      "适用 DeepSeek 官方、Kimi 等三档 API。注入 thinking.type=enabled，并将 xhigh/max 映射为 max，其余映射为 high。",
+  },
+  {
+    value: "openrouter",
+    label: "OpenRouter",
+    summary: "max→xhigh，写入 reasoning.effort",
+    detail:
+      "适用 OpenRouter 聚合网关。effort 写入 reasoning.effort 嵌套对象，max 映射为 xhigh，关闭时写 reasoning.effort=none。",
+  },
+  {
+    value: "low_high",
+    label: "低高两档",
+    summary: "minimal/low→low，其余→high",
+    detail:
+      "适用仅支持 low/high 两档的模型。minimal 与 low 映射为 low，medium/high/xhigh/max 映射为 high。",
+  },
+];
+
+interface Props {
+  value: string;
+  onChange: (value: string) => void;
+  upstreamFormat?: "anthropic" | "openai";
+}
+
+export default function ReasoningModeSelect({ value, onChange, upstreamFormat = "openai" }: Props) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const controlRef = useRef<HTMLDivElement>(null);
+
+  const selected =
+    REASONING_MODE_OPTIONS.find((o) => o.value === value) ?? REASONING_MODE_OPTIONS[0];
+  const detailOption =
+    REASONING_MODE_OPTIONS.find((o) => o.value === hovered) ?? selected;
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (controlRef.current && !controlRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setHovered(null);
+      }
+    };
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  const handleSelect = (modeValue: string) => {
+    onChange(modeValue);
+    setOpen(false);
+    setHovered(null);
+  };
+
+  const handleOpen = () => {
+    setOpen((v) => {
+      const next = !v;
+      if (!next) setHovered(null);
+      return next;
+    });
+  };
+
+  return (
+    <div className="field reasoning-mode-field">
+      <label>Reasoning Mode</label>
+      <div
+        className={`reasoning-mode-control${open ? " is-open" : ""}`}
+        ref={controlRef}
+      >
+        <div className="reasoning-mode-row">
+          <button
+            type="button"
+            className={`reasoning-mode-trigger ${open ? "open" : ""}`}
+            onClick={handleOpen}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+          >
+            <span>{selected.label}</span>
+            <svg
+              className="reasoning-mode-chevron"
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M3 4.5L6 7.5L9 4.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          {!open && (
+            <div className="reasoning-mode-summary" title={selected.detail}>
+              {upstreamFormat === "anthropic" ? "Anthropic · " : "OpenAI · "}
+              {selected.summary}
+            </div>
+          )}
+        </div>
+
+        {open && (
+          <>
+            <div className="reasoning-mode-dropdown" role="listbox">
+              {REASONING_MODE_OPTIONS.map((option) => (
+                <div
+                  key={option.value}
+                  role="option"
+                  aria-selected={option.value === value}
+                  className={`reasoning-mode-option ${
+                    option.value === value ? "active" : ""
+                  } ${option.value === hovered ? "hovered" : ""}`}
+                  onMouseEnter={() => setHovered(option.value)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => handleSelect(option.value)}
+                >
+                  {option.label}
+                </div>
+              ))}
+            </div>
+            <div className="reasoning-mode-detail-panel" aria-live="polite">
+              <div className="reasoning-mode-detail-title">{detailOption.label}</div>
+              <p className="reasoning-mode-detail-body">{detailOption.detail}</p>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
