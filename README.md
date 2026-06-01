@@ -13,7 +13,7 @@
 
 ## 目录结构
 
-`
+```
 codex-bridge-desktop/
 +-- electron/
 |   +-- main.ts                  # Electron 主进程
@@ -46,42 +46,42 @@ codex-bridge-desktop/
 +-- tsconfig.json                # 前端 TypeScript 配置
 +-- tsconfig.node.json           # Node TypeScript 配置
 +-- README.md                    # 本文件
-`
+```
 
 ## 快速开始
 
 ### 前置要求
 
-- [Node.js](https://nodejs.org/) >= 18
+- Node.js >= 18
 - npm
 
 ### 安装
 
-`ash
+```bash
 npm install
-`
+```
 
 ### 开发
 
-`ash
+```bash
 npm run dev
-`
+```
 
 启动 Vite 开发服务器和 Electron 窗口，支持热重载。
 
 ### 测试
 
-`ash
+```bash
 # 运行所有测试
 npm test
 
 # 仅运行 Bridge 测试
 npm run test:bridge
-`
+```
 
 ### 构建
 
-`ash
+```bash
 # 构建生产版本
 npm run build
 
@@ -90,13 +90,13 @@ npm run preview
 
 # 打包为 Windows 安装程序
 npm run dist
-`
+```
 
 ### 图标生成
 
-`ash
+```bash
 npm run build:icon
-`
+```
 
 ## 配置说明
 
