@@ -15,43 +15,44 @@
 
 `
 codex-bridge-desktop/
-├── electron/
-│   ├── main.ts                  # Electron 主进程
-│   ├── preload.ts               # 预加载脚本（IPC 桥接）
-│   ├── electron.d.ts            # Electron API 类型声明
-│   ├── tsconfig.json            # Electron TypeScript 配置
-│   └── bridge/
-│       ├── config.ts            # 配置加载
-│       ├── server.ts            # Bridge HTTP 服务器
-│       ├── reasoning/           # 推理模式配置
-│       ├── sse/                 # SSE 解析/发送
-│       ├── upstream/
-│       │   ├── openai/          # OpenAI 协议适配
-│       │   └── anthropic/       # Anthropic 协议适配
-│       └── __tests__/           # Bridge 单元测试
-├── src/
-│   ├── main.tsx                 # React 入口
-│   ├── App.tsx                  # 主应用组件
-│   ├── vite-env.d.ts            # Vite 类型声明
-│   ├── components/              # UI 组件
-│   └── styles/index.css         # 全局样式
-├── scripts/
-│   ├── build-icon.cjs           # 图标生成脚本
-│   └── run-vite.cjs             # Vite 开发服务器启动
-├── build/                       # 构建资源（图标）
-├── public/                      # 静态资源
-├── package.json
-├── vite.config.ts               # Vite 配置
-├── vitest.config.ts             # 测试配置
-├── tsconfig.json                # 前端 TypeScript 配置
-└── tsconfig.node.json           # Node TypeScript 配置
++-- electron/
+|   +-- main.ts                  # Electron 主进程
+|   +-- preload.ts               # 预加载脚本（IPC 桥接）
+|   +-- electron.d.ts            # Electron API 类型声明
+|   +-- tsconfig.json            # Electron TypeScript 配置
+|   +-- bridge/
+|       +-- config.ts            # 配置加载
+|       +-- server.ts            # Bridge HTTP 服务器
+|       +-- reasoning/           # 推理模式配置
+|       +-- sse/                 # SSE 解析/发送
+|       +-- upstream/
+|       |   +-- openai/          # OpenAI 协议适配
+|       |   +-- anthropic/       # Anthropic 协议适配
+|       +-- __tests__/           # Bridge 单元测试
++-- src/
+|   +-- main.tsx                 # React 入口
+|   +-- App.tsx                  # 主应用组件
+|   +-- vite-env.d.ts            # Vite 类型声明
+|   +-- components/              # UI 组件
+|   +-- styles/index.css         # 全局样式
++-- scripts/
+|   +-- build-icon.cjs           # 图标生成脚本
+|   +-- run-vite.cjs             # Vite 开发服务器启动
++-- build/                       # 构建资源（图标）
++-- public/                      # 静态资源
++-- package.json
++-- vite.config.ts               # Vite 配置
++-- vitest.config.ts             # 测试配置
++-- tsconfig.json                # 前端 TypeScript 配置
++-- tsconfig.node.json           # Node TypeScript 配置
++-- README.md                    # 本文件
 `
 
 ## 快速开始
 
 ### 前置要求
 
-- Node.js >= 18
+- [Node.js](https://nodejs.org/) >= 18
 - npm
 
 ### 安装
