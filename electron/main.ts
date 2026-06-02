@@ -86,10 +86,9 @@ function sendLog(text: string, level: "info" | "success" | "error" | "warn" = "i
 const TITLE_BAR_HEIGHT = 32;
 
 function resolveAppIconPath(): string | undefined {
-  const ico = path.join(__dirname, "../build/icon.ico");
-  if (process.platform === "win32" && fs.existsSync(ico)) return ico;
   const candidates = [
-    path.join(__dirname, "../build/icon.png"),
+    path.join(__dirname, "../dist/icon.png"),
+    path.join(__dirname, "../build/icon.ico"),
     path.join(__dirname, "../public/icon.png"),
   ];
   for (const candidate of candidates) {

@@ -1,7 +1,7 @@
 {
   "name": "codex-bridge-desktop",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:bridge": "vitest run electron/bridge",
     "preview": "npm run build && electron .",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build:icon && npm run build && node scripts/run-electron-builder.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
