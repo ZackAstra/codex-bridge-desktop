@@ -258,34 +258,24 @@ function parseEnv(): Record<string, string> {
 }
 
 function writeEnv(data: Record<string, string>) {
-  const upstreamFormat = data.UPSTREAM_FORMAT || "anthropic";
-  const apiKey = data.ANTHROPIC_AUTH_TOKEN || "";
-  const model = data.ANTHROPIC_MODEL || "";
-  const baseUrl = data.ANTHROPIC_BASE_URL || "";
   const reasoningMode = data.CODEX_CHAT_REASONING_MODE || "auto";
   const bridgePort = data.BRIDGE_PORT || "8000";
-
-  const openaiBaseUrl =
-    upstreamFormat === "openai"
-      ? data.OPENAI_BASE_URL || baseUrl || "https://api.openai.com/v1"
-      : data.OPENAI_BASE_URL || "";
-  const openaiApiKey =
-    upstreamFormat === "openai" ? data.OPENAI_API_KEY || apiKey : data.OPENAI_API_KEY || "";
 
   const lines = [
     `# codex-bridge config - saved ${new Date().toISOString()}`,
     "",
-    `UPSTREAM_FORMAT=${upstreamFormat}`,
+    `UPSTREAM_FORMAT=${data.UPSTREAM_FORMAT || "anthropic"}`,
     `BRIDGE_PORT=${bridgePort}`,
     "",
-    `# Shared upstream credentials (Desktop UI)`,
-    `ANTHROPIC_AUTH_TOKEN=${apiKey}`,
-    `ANTHROPIC_MODEL=${model}`,
-    `ANTHROPIC_BASE_URL=${baseUrl}`,
+    `# Anthropic upstream`,
+    `ANTHROPIC_AUTH_TOKEN=${data.ANTHROPIC_AUTH_TOKEN || ""}`,
+    `ANTHROPIC_MODEL=${data.ANTHROPIC_MODEL || ""}`,
+    `ANTHROPIC_BASE_URL=${data.ANTHROPIC_BASE_URL || ""}`,
     "",
-    `# OpenAI Chat Completions upstream (UPSTREAM_FORMAT=openai)`,
-    `OPENAI_API_KEY=${openaiApiKey}`,
-    `OPENAI_BASE_URL=${openaiBaseUrl}`,
+    `# OpenAI Chat Completions upstream`,
+    `OPENAI_API_KEY=${data.OPENAI_API_KEY || ""}`,
+    `OPENAI_MODEL=${data.OPENAI_MODEL || ""}`,
+    `OPENAI_BASE_URL=${data.OPENAI_BASE_URL || ""}`,
     `# Reasoning mode (OpenAI + Anthropic upstream): passthrough | deepseek | openrouter | low_high | auto`,
     `CODEX_CHAT_REASONING_MODE=${reasoningMode}`,
     "",
@@ -391,17 +381,18 @@ ipcMain.handle("read-config", async () => {
   const upstreamFormat = env.UPSTREAM_FORMAT || "anthropic";
   const displayBaseUrl =
     upstreamFormat === "openai"
-      ? env.OPENAI_BASE_URL || env.ANTHROPIC_BASE_URL || ""
-      : env.ANTHROPIC_BASE_URL || env.OPENAI_BASE_URL || "";
+      ? env.OPENAI_BASE_URL || ""
+      : env.ANTHROPIC_BASE_URL || "";
 
   return {
-    ANTHROPIC_AUTH_TOKEN: env.ANTHROPIC_AUTH_TOKEN || env.OPENAI_API_KEY || "",
+    ANTHROPIC_AUTH_TOKEN: env.ANTHROPIC_AUTH_TOKEN || "",
     ANTHROPIC_MODEL: env.ANTHROPIC_MODEL || "",
     ANTHROPIC_BASE_URL: displayBaseUrl,
+    OPENAI_MODEL: env.OPENAI_MODEL || "",
     OPENAI_BASE_URL: env.OPENAI_BASE_URL || "",
     OPENAI_API_KEY: env.OPENAI_API_KEY || "",
     CODEX_CHAT_REASONING_MODE: env.CODEX_CHAT_REASONING_MODE || "auto",
-    CODEX_MODEL: (top.model as string) || env.ANTHROPIC_MODEL || "",
+    CODEX_MODEL: (top.model as string) || (upstreamFormat === "openai" ? (env.OPENAI_MODEL || "") : (env.ANTHROPIC_MODEL || "")),
     CODEX_PROVIDER: (top.model_provider as string) || "bridge",
     BRIDGE_PORT: env.BRIDGE_PORT || port,
     CODEX_CONFIG_PATH: codexDir,
@@ -421,7 +412,8 @@ ipcMain.handle("write-config", async (_event, payload: Record<string, string>) =
     writeEnv(payload);
     sendLog("Saved .env", "success");
 
-    const model = payload.CODEX_MODEL || payload.ANTHROPIC_MODEL || "";
+    const activeModel = payload.UPSTREAM_FORMAT === "openai" ? payload.OPENAI_MODEL : payload.ANTHROPIC_MODEL;
+    const model = payload.CODEX_MODEL || activeModel || "";
     const provider = payload.CODEX_PROVIDER || "bridge";
     const port = payload.BRIDGE_PORT || "8000";
     const tomlPath = path.join(codexDir, "config.toml");

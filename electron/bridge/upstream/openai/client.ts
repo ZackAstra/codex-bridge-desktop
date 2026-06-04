@@ -25,7 +25,7 @@ export class OpenAIUpstreamClient {
   }
 
   buildChatPayload(body: Record<string, unknown>): Record<string, unknown> {
-    const upstreamModel = String(this.settings.anthropicModel || body.model || "");
+    const upstreamModel = String(this.settings.openaiModel || body.model || "");
     const reasoningConfig = resolveCodexChatReasoningConfig(
       this.baseUrl,
       upstreamModel,

@@ -46,40 +46,77 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
         </div>
       </div>
 
-      <div className="card-title" style={{ marginTop: 12 }}>
-        {isOpenAI ? "OpenAI Upstream" : "Anthropic Upstream"}
-      </div>
-      <div className="field">
-        <label>API Key</label>
-        <input
-          type="password"
-          placeholder="sk-..."
-          value={config.ANTHROPIC_AUTH_TOKEN}
-          onChange={(e) => update("ANTHROPIC_AUTH_TOKEN", e.target.value)}
-        />
-      </div>
-      <div className="field">
-        <label>Model Name</label>
-        <input
-          type="text"
-          placeholder={isOpenAI ? "deepseek-v4-flash" : "MiniMax-M2.7"}
-          value={config.ANTHROPIC_MODEL}
-          onChange={(e) => update("ANTHROPIC_MODEL", e.target.value)}
-        />
-      </div>
-      <div className="field">
-        <label>{isOpenAI ? "OpenAI Base URL" : "Anthropic Base URL"}</label>
-        <input
-          type="text"
-          placeholder={
-            isOpenAI
-              ? "https://api.deepseek.com/v1"
-              : "https://api.minimaxi.com/anthropic"
-          }
-          value={config.ANTHROPIC_BASE_URL}
-          onChange={(e) => update("ANTHROPIC_BASE_URL", e.target.value)}
-        />
-      </div>
+      {/* Anthropic tab */}
+      {!isOpenAI && (
+        <>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            Anthropic Upstream
+          </div>
+          <div className="field">
+            <label>API Key</label>
+            <input
+              type="password"
+              placeholder="sk-..."
+              value={config.ANTHROPIC_AUTH_TOKEN}
+              onChange={(e) => update("ANTHROPIC_AUTH_TOKEN", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Model Name</label>
+            <input
+              type="text"
+              placeholder="MiniMax-M2.7"
+              value={config.ANTHROPIC_MODEL}
+              onChange={(e) => update("ANTHROPIC_MODEL", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Anthropic Base URL</label>
+            <input
+              type="text"
+              placeholder="https://api.minimaxi.com/anthropic"
+              value={config.ANTHROPIC_BASE_URL}
+              onChange={(e) => update("ANTHROPIC_BASE_URL", e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* OpenAI tab */}
+      {isOpenAI && (
+        <>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            OpenAI Upstream
+          </div>
+          <div className="field">
+            <label>API Key</label>
+            <input
+              type="password"
+              placeholder="sk-..."
+              value={config.OPENAI_API_KEY}
+              onChange={(e) => update("OPENAI_API_KEY", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Model Name</label>
+            <input
+              type="text"
+              placeholder="deepseek-v4-flash"
+              value={config.OPENAI_MODEL}
+              onChange={(e) => update("OPENAI_MODEL", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>OpenAI Base URL</label>
+            <input
+              type="text"
+              placeholder="https://api.deepseek.com/v1"
+              value={config.OPENAI_BASE_URL}
+              onChange={(e) => update("OPENAI_BASE_URL", e.target.value)}
+            />
+          </div>
+        </>
+      )}
 
       <ReasoningModeSelect
         value={config.CODEX_CHAT_REASONING_MODE || "auto"}
@@ -121,7 +158,7 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
         <label>Codex Config Path</label>
         <input
           type="text"
-          placeholder="C:\\Users\\xxx\\.codex"
+          placeholder="C:\Users\xxx\.codex"
           value={config.CODEX_CONFIG_PATH}
           onChange={(e) => update("CODEX_CONFIG_PATH", e.target.value)}
         />

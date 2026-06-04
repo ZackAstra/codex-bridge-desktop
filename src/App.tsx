@@ -17,6 +17,7 @@ export interface ConfigData {
   ANTHROPIC_BASE_URL: string;
   OPENAI_API_KEY: string;
   OPENAI_BASE_URL: string;
+  OPENAI_MODEL: string;
   CODEX_CHAT_REASONING_MODE: string;
   CODEX_MODEL: string;
   CODEX_PROVIDER: string;
@@ -58,6 +59,7 @@ function App() {
     ANTHROPIC_BASE_URL: "",
     OPENAI_API_KEY: "",
     OPENAI_BASE_URL: "",
+    OPENAI_MODEL: "",
     CODEX_CHAT_REASONING_MODE: "auto",
     CODEX_MODEL: "",
     CODEX_PROVIDER: "bridge",

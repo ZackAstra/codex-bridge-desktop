@@ -4,6 +4,7 @@ export interface Settings {
   anthropicBaseUrl: string;
   openaiBaseUrl: string;
   openaiApiKey: string;
+  openaiModel: string;
   upstreamFormat: string;
   codexChatReasoningMode: string;
 }
@@ -11,26 +12,28 @@ export interface Settings {
 let cachedSettings: Settings | null = null;
 
 export function loadSettings(env: Record<string, string> = process.env as Record<string, string>): Settings {
-  const anthropicToken = env.ANTHROPIC_AUTH_TOKEN || "";
   const upstreamFormat = env.UPSTREAM_FORMAT || "anthropic";
-  const anthropicBaseUrl = env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic";
 
-  const openaiKey = env.OPENAI_API_KEY || anthropicToken;
-  let openaiBaseUrl = env.OPENAI_BASE_URL || "";
-  if (!openaiBaseUrl) {
-    if (upstreamFormat === "openai" && anthropicBaseUrl) {
-      openaiBaseUrl = anthropicBaseUrl;
-    } else {
-      openaiBaseUrl = "https://api.openai.com/v1";
-    }
-  }
+  // Populate active upstream fields based on the selected tab
+  const isOpenAI = upstreamFormat === "openai";
+
+  const anthropicAuthToken = isOpenAI ? (env.OPENAI_API_KEY || "") : (env.ANTHROPIC_AUTH_TOKEN || "");
+  const anthropicModel = isOpenAI ? (env.OPENAI_MODEL || "") : (env.ANTHROPIC_MODEL || "");
+  const anthropicBaseUrl = isOpenAI
+    ? (env.OPENAI_BASE_URL || "https://api.deepseek.com/v1")
+    : (env.ANTHROPIC_BASE_URL || "https://api.minimaxi.com/anthropic");
+
+  const openaiApiKey = env.OPENAI_API_KEY || "";
+  const openaiBaseUrl = env.OPENAI_BASE_URL || "";
+  const openaiModel = env.OPENAI_MODEL || "";
 
   cachedSettings = {
-    anthropicAuthToken: anthropicToken,
-    anthropicModel: env.ANTHROPIC_MODEL || "",
+    anthropicAuthToken,
+    anthropicModel,
     anthropicBaseUrl,
     openaiBaseUrl,
-    openaiApiKey: openaiKey,
+    openaiApiKey,
+    openaiModel,
     upstreamFormat,
     codexChatReasoningMode: env.CODEX_CHAT_REASONING_MODE || "auto",
   };
