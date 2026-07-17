@@ -16,8 +16,8 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
 
   const setFormat = (format: "anthropic" | "openai") => {
     const next: ConfigData = { ...config, UPSTREAM_FORMAT: format };
-    if (format === "openai" && !next.ANTHROPIC_BASE_URL) {
-      next.ANTHROPIC_BASE_URL = "https://api.deepseek.com/v1";
+    if (format === "openai" && !next.OPENAI_BASE_URL) {
+      next.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
     }
     if (format === "anthropic" && !next.ANTHROPIC_BASE_URL) {
       next.ANTHROPIC_BASE_URL = "https://api.minimaxi.com/anthropic";

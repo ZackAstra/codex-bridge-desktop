@@ -379,15 +379,10 @@ ipcMain.handle("read-config", async () => {
   const port = typeof bridge.base_url === "string" ? (bridge.base_url.match(/:(\d+)$/)?.[1] || "8000") : "8000";
 
   const upstreamFormat = env.UPSTREAM_FORMAT || "anthropic";
-  const displayBaseUrl =
-    upstreamFormat === "openai"
-      ? env.OPENAI_BASE_URL || ""
-      : env.ANTHROPIC_BASE_URL || "";
-
   return {
     ANTHROPIC_AUTH_TOKEN: env.ANTHROPIC_AUTH_TOKEN || "",
     ANTHROPIC_MODEL: env.ANTHROPIC_MODEL || "",
-    ANTHROPIC_BASE_URL: displayBaseUrl,
+    ANTHROPIC_BASE_URL: env.ANTHROPIC_BASE_URL || "",
     OPENAI_MODEL: env.OPENAI_MODEL || "",
     OPENAI_BASE_URL: env.OPENAI_BASE_URL || "",
     OPENAI_API_KEY: env.OPENAI_API_KEY || "",

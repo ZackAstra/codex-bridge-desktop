@@ -361,6 +361,16 @@ export class AnthropicToResponsesState {
     return idx;
   }
 
+  finalize(): string[] {
+    if (this.completed) return [];
+    const output = this.buildOutputItems();
+    const usage = { ...this.usage, total_tokens: this.usage.input_tokens + this.usage.output_tokens };
+    const response = this.baseResponse('completed', output);
+    response.usage = usage;
+    this.completed = true;
+    return [sseEmit('response.completed', { type: 'response.completed', response })];
+  }
+
   failedResponse(message: string, errorType = "server_error"): string {
     this.completed = true;
     const usage = { ...this.usage, total_tokens: this.usage.input_tokens + this.usage.output_tokens };

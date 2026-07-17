@@ -136,6 +136,9 @@ async function* streamAnthropic(opts: {
         log(opts.onLog, `[anthropic] event error: ${e}`);
       }
     }
+    for (const sse of state.finalize()) {
+      yield sse;
+    }
   } catch (e) {
     log(opts.onLog, `[anthropic] stream error: ${e}`);
     if (!state.completed) {
