@@ -343,6 +343,12 @@ function writeEnv(data: Record<string, string>) {
     `OPENAI_API_KEY=${data.OPENAI_API_KEY || ""}`,
     `OPENAI_MODEL=${data.OPENAI_MODEL || ""}`,
     `OPENAI_BASE_URL=${data.OPENAI_BASE_URL || ""}`,
+    "",
+    `# Response (Responses API) upstream`,
+    `RESPONSE_API_KEY=${data.RESPONSE_API_KEY || ""}`,
+    `RESPONSE_MODEL=${data.RESPONSE_MODEL || ""}`,
+    `RESPONSE_BASE_URL=${data.RESPONSE_BASE_URL || ""}`,
+    "",
     `# Reasoning mode (OpenAI + Anthropic upstream): passthrough | deepseek | openrouter | low_high | auto`,
     `CODEX_CHAT_REASONING_MODE=${reasoningMode}`,
     "",
@@ -453,8 +459,11 @@ ipcMain.handle("read-config", async () => {
     OPENAI_MODEL: env.OPENAI_MODEL || "",
     OPENAI_BASE_URL: env.OPENAI_BASE_URL || "",
     OPENAI_API_KEY: env.OPENAI_API_KEY || "",
+    RESPONSE_API_KEY: env.RESPONSE_API_KEY || "",
+    RESPONSE_BASE_URL: env.RESPONSE_BASE_URL || "",
+    RESPONSE_MODEL: env.RESPONSE_MODEL || "",
     CODEX_CHAT_REASONING_MODE: env.CODEX_CHAT_REASONING_MODE || "auto",
-    CODEX_MODEL: (top.model as string) || (upstreamFormat === "openai" ? (env.OPENAI_MODEL || "") : (env.ANTHROPIC_MODEL || "")),
+    CODEX_MODEL: (top.model as string) || (upstreamFormat === "openai" ? (env.OPENAI_MODEL || "") : upstreamFormat === "response" ? (env.RESPONSE_MODEL || "") : (env.ANTHROPIC_MODEL || "")),
     CODEX_PROVIDER: (top.model_provider as string) || "bridge",
     BRIDGE_PORT: env.BRIDGE_PORT || port,
     CODEX_CONFIG_PATH: codexDir,
@@ -474,7 +483,7 @@ ipcMain.handle("write-config", async (_event, payload: Record<string, string>) =
     writeEnv(payload);
     sendLog("Saved .env", "success");
 
-    const activeModel = payload.UPSTREAM_FORMAT === "openai" ? payload.OPENAI_MODEL : payload.ANTHROPIC_MODEL;
+    const activeModel = payload.UPSTREAM_FORMAT === "openai" ? payload.OPENAI_MODEL : payload.UPSTREAM_FORMAT === "response" ? payload.RESPONSE_MODEL : payload.ANTHROPIC_MODEL;
     const model = payload.CODEX_MODEL || activeModel || "";
     const provider = payload.CODEX_PROVIDER || "bridge";
     const port = payload.BRIDGE_PORT || "8000";
