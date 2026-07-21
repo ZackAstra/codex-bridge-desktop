@@ -1,4 +1,4 @@
-import { ConfigData } from "../App";
+﻿import { ConfigData } from "../App";
 import ReasoningModeSelect from "./ReasoningModeSelect";
 
 interface Props {
@@ -9,18 +9,22 @@ interface Props {
 
 export default function ConfigCard({ config, onChange, onSave }: Props) {
   const isOpenAI = config.UPSTREAM_FORMAT === "openai";
+  const isResponse = config.UPSTREAM_FORMAT === "response";
 
   const update = (key: keyof ConfigData, value: string) => {
     onChange({ ...config, [key]: value });
   };
 
-  const setFormat = (format: "anthropic" | "openai") => {
+  const setFormat = (format: "anthropic" | "openai" | "response") => {
     const next: ConfigData = { ...config, UPSTREAM_FORMAT: format };
     if (format === "openai" && !next.OPENAI_BASE_URL) {
       next.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
     }
     if (format === "anthropic" && !next.ANTHROPIC_BASE_URL) {
       next.ANTHROPIC_BASE_URL = "https://api.minimaxi.com/anthropic";
+    }
+    if (format === "response" && !next.RESPONSE_BASE_URL) {
+      next.RESPONSE_BASE_URL = "https://api.openai.com/v1";
     }
     onChange(next);
   };
@@ -43,11 +47,17 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
           >
             OpenAI
           </button>
+          <button
+            className={`seg-btn ${config.UPSTREAM_FORMAT === "response" ? "active" : ""}`}
+            onClick={() => setFormat("response")}
+          >
+            Response
+          </button>
         </div>
       </div>
 
       {/* Anthropic tab */}
-      {!isOpenAI && (
+      {!isOpenAI && !isResponse && (
         <>
           <div className="card-title" style={{ marginTop: 12 }}>
             Anthropic Upstream
@@ -83,7 +93,7 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
       )}
 
       {/* OpenAI tab */}
-      {isOpenAI && (
+      {isOpenAI && !isResponse && (
         <>
           <div className="card-title" style={{ marginTop: 12 }}>
             OpenAI Upstream
@@ -118,10 +128,46 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
         </>
       )}
 
+      {/* Response tab */}
+      {isResponse && (
+        <>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            Response Upstream
+          </div>
+          <div className="field">
+            <label>API Key</label>
+            <input
+              type="password"
+              placeholder="sk-..."
+              value={config.RESPONSE_API_KEY}
+              onChange={(e) => update("RESPONSE_API_KEY", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Model Name</label>
+            <input
+              type="text"
+              placeholder="gpt-5"
+              value={config.RESPONSE_MODEL}
+              onChange={(e) => update("RESPONSE_MODEL", e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Response Base URL</label>
+            <input
+              type="text"
+              placeholder="https://api.openai.com/v1"
+              value={config.RESPONSE_BASE_URL}
+              onChange={(e) => update("RESPONSE_BASE_URL", e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
       <ReasoningModeSelect
         value={config.CODEX_CHAT_REASONING_MODE || "auto"}
         onChange={(v) => update("CODEX_CHAT_REASONING_MODE", v)}
-        upstreamFormat={config.UPSTREAM_FORMAT}
+        upstreamFormat={config.UPSTREAM_FORMAT === "response" ? "openai" : config.UPSTREAM_FORMAT}
       />
 
       <div className="card-title" style={{ marginTop: 12 }}>

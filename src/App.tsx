@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+﻿import React, { useEffect, useRef, useState, useCallback } from "react";
 import ConfigCard from "./components/ConfigCard";
 import LogPanel from "./components/LogPanel";
 import {
@@ -18,12 +18,15 @@ export interface ConfigData {
   OPENAI_API_KEY: string;
   OPENAI_BASE_URL: string;
   OPENAI_MODEL: string;
+  RESPONSE_API_KEY: string;
+  RESPONSE_BASE_URL: string;
+  RESPONSE_MODEL: string;
   CODEX_CHAT_REASONING_MODE: string;
   CODEX_MODEL: string;
   CODEX_PROVIDER: string;
   BRIDGE_PORT: string;
   CODEX_CONFIG_PATH: string;
-  UPSTREAM_FORMAT: "anthropic" | "openai";
+  UPSTREAM_FORMAT: "anthropic" | "openai" | "response";
 }
 
 export interface LogLine {
@@ -60,6 +63,9 @@ function App() {
     OPENAI_API_KEY: "",
     OPENAI_BASE_URL: "",
     OPENAI_MODEL: "",
+    RESPONSE_API_KEY: "",
+    RESPONSE_BASE_URL: "",
+    RESPONSE_MODEL: "",
     CODEX_CHAT_REASONING_MODE: "auto",
     CODEX_MODEL: "",
     CODEX_PROVIDER: "bridge",
@@ -163,40 +169,22 @@ function App() {
     };
   }, []);
 
-  const addLog = useCallback((text: string, level: LogLine["level"] = "info") => {
-    setLogs((prev) => [...prev, { text: `[${new Date().toLocaleTimeString()}] ${text}`, level }]);
+  const addLog = useCallback((text: string, level: "info" | "success" | "error" | "warn" = "info") => {
+    setLogs((prev) => [...prev.slice(-200), { text, level }]);
   }, []);
 
-  const handleSave = async (data: ConfigData) => {
-    setConfig(data);
-    const result = await window.electronAPI.writeConfig(data as unknown as Record<string, string>);
-    if (result.ok) addLog("Configuration saved", "success");
-    else addLog(`Save failed: ${result.error}`, "error");
+  const handleSave = async (cfg: ConfigData) => {
+    await window.electronAPI.writeConfig(cfg as unknown as Record<string, string>);
+    addLog("Config saved", "success");
   };
 
-  const handleStartBridge = async () => {
-    const result = await window.electronAPI.startBridge();
-    if (result.ok) {
-      setBridgeRunning(true);
-      addLog("Bridge server started on port " + config.BRIDGE_PORT, "success");
+  const toggleBridge = async () => {
+    if (bridgeRunning) {
+      await window.electronAPI.stopBridge();
     } else {
-      addLog(`Start failed: ${result.error}`, "error");
+      await window.electronAPI.writeConfig(config as unknown as Record<string, string>);
+      await window.electronAPI.startBridge();
     }
-  };
-
-  const handleStopBridge = async () => {
-    const result = await window.electronAPI.stopBridge();
-    if (result.ok) {
-      setBridgeRunning(false);
-      addLog("Bridge server stopped", "info");
-    } else {
-      addLog(`Stop failed: ${result.error}`, "error");
-    }
-  };
-
-  const toggleBridge = () => {
-    if (bridgeRunning) handleStopBridge();
-    else handleStartBridge();
   };
 
   const handleLaunchCodex = async () => {

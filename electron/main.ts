@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, Tray } from "electron";
 import path from "path";
 import fs from "fs";
 import { spawn, exec } from "child_process";
@@ -15,7 +15,9 @@ function getEnvPath(): string {
 let bridgeServer: BridgeServer | null = null;
 let mainWindow: any = null;
 let codexCheckInterval: NodeJS.Timeout | null = null;
+let tray: Electron.Tray | null = null;
 let lastCodexRunning = false;
+let isQuitting = false;
 let appThemeMode: "light" | "dark" | "system" = "system";
 
 function toPowerShellEncodedCommand(script: string): string {
@@ -97,6 +99,18 @@ function resolveAppIconPath(): string | undefined {
   return undefined;
 }
 
+function resolveTrayIconPath(): string | undefined {
+  const candidates = [
+    path.join(__dirname, "../build/icon.ico"),
+    path.join(__dirname, "../public/icon.png"),
+    path.join(__dirname, "../dist/icon.png"),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
+
 const WINDOW_THEME = {
   light: { bg: "#ebebeb", symbol: "#1d1d1f" },
   dark: { bg: "#1e1e1e", symbol: "#ffffff" },
@@ -136,6 +150,44 @@ function getInitialWindowTheme(): "light" | "dark" {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
 }
 
+function createTray() {
+  const iconPath = resolveTrayIconPath();
+  if (!iconPath) return;
+
+  tray = new Tray(iconPath);
+  tray.setToolTip("Codex Bridge");
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show Codex Bridge",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => {
+        isQuitting = true;
+        stopBridgeGracefully();
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on("double-click", () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 function createWindow() {
   const initial = WINDOW_THEME[getInitialWindowTheme()];
   const winOptions: Electron.BrowserWindowConstructorOptions = {
@@ -168,6 +220,19 @@ function createWindow() {
 
   mainWindow = new BrowserWindow(winOptions);
 
+  // Minimize to tray instead of taskbar
+  mainWindow.on("minimize", (event: Event) => {
+    event.preventDefault();
+    mainWindow.hide();
+  });
+
+  mainWindow.on("close", (event: Event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   } else {
@@ -182,6 +247,7 @@ function createWindow() {
 app.whenReady().then(() => {
   migrateLegacyEnvIfNeeded();
   createWindow();
+  createTray();
   nativeTheme.on("updated", () => {
     if (appThemeMode === "system") {
       applyWindowTheme(resolveEffectiveThemeMode("system"));
@@ -216,6 +282,7 @@ function stopBridgeGracefully() {
 }
 
 app.on("before-quit", () => {
+  isQuitting = true;
   stopBridgeGracefully();
   if (codexCheckInterval) {
     clearInterval(codexCheckInterval);

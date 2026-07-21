@@ -1,9 +1,10 @@
-import { EventEmitter } from "events";
+﻿import { EventEmitter } from "events";
 import http, { IncomingMessage, Server, ServerResponse } from "http";
 import { URL } from "url";
 import { clearSettingsCache, getSettings, loadSettings } from "./config";
 import { handleAnthropic } from "./upstream/anthropic/handler";
 import { handleOpenai } from "./upstream/openai/handler";
+import { handleResponse } from "./upstream/response/handler";
 
 export interface BridgeServerOptions {
   port: number;
@@ -29,13 +30,22 @@ export class BridgeServer extends EventEmitter {
     loadSettings(this.env);
 
     const settings = getSettings();
-    if (!settings.anthropicAuthToken) {
-      this.emitLog("[WARN] ANTHROPIC_AUTH_TOKEN not set. Anthropic upstream unavailable.");
-    }
-    if (!settings.anthropicModel) {
-      this.emitLog("[WARN] ANTHROPIC_MODEL not set. Configure default model.");
+    if (settings.upstreamFormat === "response") {
+      if (!settings.responseApiKey) {
+        this.emitLog("[WARN] RESPONSE_API_KEY not set. Response upstream unavailable.");
+      }
+      if (settings.responseModel) {
+        this.emitLog(`[PROXY] Loaded response model: ${settings.responseModel}`);
+      }
     } else {
-      this.emitLog(`[PROXY] Loaded model: ${settings.anthropicModel}`);
+      if (!settings.anthropicAuthToken) {
+        this.emitLog("[WARN] ANTHROPIC_AUTH_TOKEN not set. Anthropic upstream unavailable.");
+      }
+      if (!settings.anthropicModel) {
+        this.emitLog("[WARN] ANTHROPIC_MODEL not set. Configure default model.");
+      } else {
+        this.emitLog(`[PROXY] Loaded model: ${settings.anthropicModel}`);
+      }
     }
 
     this.server = http.createServer((req, res) => {
@@ -119,6 +129,24 @@ export class BridgeServer extends EventEmitter {
       }
     }
 
+    if (settings.upstreamFormat === "response") {
+      try {
+        const query = url.searchParams.toString();
+        const modelsUrl = `${settings.responseBaseUrl.replace(/\/$/, "")}/models${query ? `?${query}` : ""}`;
+        const resp = await fetch(modelsUrl, {
+          headers: { Authorization: `Bearer ${settings.responseApiKey}` },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(data));
+          return;
+        }
+      } catch (e) {
+        this.emitLog(`[PROXY] /models response proxy error: ${e}`);
+      }
+    }
+
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
@@ -147,10 +175,20 @@ export class BridgeServer extends EventEmitter {
 
     const onLog = (line: string) => this.emitLog(line);
 
-    const result =
-      upstreamFormat === "openai"
-        ? await handleOpenai(body, onLog)
-        : await handleAnthropic(body, onLog);
+    let result: {
+      status: number;
+      headers: Record<string, string>;
+      body?: unknown;
+      stream?: AsyncGenerator<string>;
+    };
+
+    if (upstreamFormat === "response") {
+      result = await handleResponse(body, onLog);
+    } else if (upstreamFormat === "openai") {
+      result = await handleOpenai(body, onLog);
+    } else {
+      result = await handleAnthropic(body, onLog);
+    }
 
     if (result.stream) {
       this.activeResponses.add(res);
