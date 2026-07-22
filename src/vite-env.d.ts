@@ -8,6 +8,7 @@ interface Window {
     stopBridge: () => Promise<{ ok: boolean; error?: string }>;
     getBridgeStatus: () => Promise<{ running: boolean }>;
     launchCodex: () => Promise<{ ok: boolean; error?: string }>;
+    getInitialLogs: () => Promise<{ text: string; level: string }[]>;
     onLog: (callback: (line: any) => void) => void;
     offLog: () => void;
     onBridgeStatus: (callback: (status: { running: boolean }) => void) => void;

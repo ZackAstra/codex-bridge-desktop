@@ -32,6 +32,7 @@ export interface ConfigData {
 export interface LogLine {
   text: string;
   level: "info" | "success" | "error" | "warn";
+  origin?: "file" | "live";
 }
 
 type ThemeMode = "light" | "dark" | "system";
@@ -158,6 +159,12 @@ function App() {
       setCodexRunning(s.running);
     });
 
+    window.electronAPI.getInitialLogs().then((lines) => {
+      if (lines.length > 0) {
+        setLogs(lines.map((l) => ({ text: l.text, level: l.level as LogLine["level"], origin: "file" as const })));
+      }
+    });
+
     window.electronAPI.onCodexStatus((status: { running: boolean }) => {
       setCodexRunning(status.running);
     });
@@ -170,7 +177,7 @@ function App() {
   }, []);
 
   const addLog = useCallback((text: string, level: "info" | "success" | "error" | "warn" = "info") => {
-    setLogs((prev) => [...prev.slice(-200), { text, level }]);
+    setLogs((prev) => [...prev.slice(-200), { text, level, origin: "live" as const }]);
   }, []);
 
   const handleSave = async (cfg: ConfigData) => {

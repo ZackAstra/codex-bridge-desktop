@@ -82,6 +82,64 @@ function scheduleCodexStartupChecks() {
 function sendLog(text: string, level: "info" | "success" | "error" | "warn" = "info") {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("log-line", { text, level });
+  appendToLogFile(text, level);
+  }
+}
+
+
+// ─── Log file persistence ───
+
+let _logFilePath: string | null = null;
+
+function getLogDir(): string {
+  try {
+    return path.join(app.getPath("userData"), "logs");
+  } catch {
+    return path.join(os.homedir(), "AppData", "Roaming", "codex-bridge", "logs");
+  }
+}
+
+function getLogFilePath(): string {
+  if (_logFilePath) return _logFilePath;
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const dir = getLogDir();
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  _logFilePath = path.join(dir, `bridge-${y}-${m}-${day}.log`);
+  return _logFilePath;
+}
+
+function appendToLogFile(text: string, level: string): void {
+  try {
+    const now = new Date();
+    const ts = [
+      now.getHours().toString().padStart(2, "0"),
+      now.getMinutes().toString().padStart(2, "0"),
+      now.getSeconds().toString().padStart(2, "0"),
+    ].join(":");
+    const line = `[${ts}] [${level}] ${text}\n`;
+    fs.appendFileSync(getLogFilePath(), line, "utf-8");
+  } catch {
+    /* best-effort */
+  }
+}
+
+function readTodayLogs(): { text: string; level: string }[] {
+  try {
+    const fp = getLogFilePath();
+    if (!fs.existsSync(fp)) return [];
+    const raw = fs.readFileSync(fp, "utf-8");
+    const lines = raw.split("\n").filter(Boolean);
+    const recent = lines.slice(-200);
+    return recent.map((l) => {
+      const m = l.match(/^\[([^\]]+)\] \[([^\]]+)\] (.*)/);
+      if (m) return { text: `[${m[1]}] ${m[3]}`, level: m[2] };
+      return { text: l, level: "info" };
+    }).filter((x) => x.text);
+  } catch {
+    return [];
   }
 }
 
@@ -575,6 +633,8 @@ ipcMain.handle("get-codex-status", async () => {
   publishCodexRunningState(running);
   return { running };
 });
+
+ipcMain.handle("get-initial-logs", async () => readTodayLogs());
 
 ipcMain.handle("set-window-theme", async (_event, mode: string) => {
   if (mode === "light" || mode === "dark" || mode === "system") {
