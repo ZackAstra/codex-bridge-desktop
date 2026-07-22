@@ -1,5 +1,6 @@
-﻿import { IncomingMessage } from "http";
 import { getSettings } from "../../config";
+import { chatErrorToResponseError } from "../openai/errors";
+import { ChatToResponsesState } from "../openai/streamState";
 
 export interface ResponseHandlerResult {
   status: number;
@@ -7,6 +8,16 @@ export interface ResponseHandlerResult {
   body?: unknown;
   stream?: AsyncGenerator<string>;
 }
+
+const JSON_HEADERS: Record<string, string> = { "Content-Type": "application/json" };
+
+const SSE_HEADERS: Record<string, string> = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+  "X-Accel-Buffering": "no",
+  "Transfer-Encoding": "chunked",
+};
 
 export async function handleResponse(
   body: Record<string, unknown>,
@@ -21,150 +32,95 @@ export async function handleResponse(
     log(onLog, "[response] RESPONSE_API_KEY not set");
     return {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
       body: { error: { message: "RESPONSE_API_KEY not configured", type: "configuration_error" } },
     };
   }
 
   const stream = Boolean(body.stream);
+  const payload: Record<string, unknown> = { ...body, model, stream };
+  delete payload.upstream_format;
 
-  if (stream) {
-    log(onLog, `[response] streaming mode: model=${model}`);
-    return {
-      status: 200,
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
-        "Transfer-Encoding": "chunked",
-      },
-      stream: streamResponse({ body, apiKey, baseUrl, model, onLog }),
-    };
-  }
+  log(onLog, `[response] ${stream ? "streaming" : "non-stream"} mode: model=${model}`);
 
-  log(onLog, `[response] non-stream mode: model=${model}`);
-  return await nonStreamResponse({ body, apiKey, baseUrl, model, onLog });
-}
-
-async function nonStreamResponse(opts: {
-  body: Record<string, unknown>;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  onLog?: (line: string) => void;
-}): Promise<ResponseHandlerResult> {
-  const url = `${opts.baseUrl}/responses`;
-  const payload = { ...opts.body, model: opts.model, stream: false };
-
+  let resp: Response;
   try {
-    const resp = await fetch(url, {
+    resp = await fetch(`${baseUrl}/responses`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${opts.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
-
-    log(opts.onLog, `[response] upstream status: ${resp.status}`);
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      let parsed: unknown = text;
-      try { parsed = JSON.parse(text); } catch { /* keep text */ }
-      return {
-        status: resp.status,
-        headers: { "Content-Type": "application/json" },
-        body: { error: typeof parsed === "object" && parsed ? parsed : { message: text } },
-      };
-    }
-
-    const data = await resp.json();
-    return {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-      body: data,
-    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log(opts.onLog, `[response] error: ${msg}`);
+    log(onLog, `[response] fetch error: ${msg}`);
     return {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: JSON_HEADERS,
       body: { error: { message: msg, type: "upstream_error" } },
     };
   }
+
+  log(onLog, `[response] upstream status: ${resp.status}`);
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    log(onLog, `[response] upstream error body: ${text.slice(0, 500)}`);
+    let parsed: unknown = text;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      /* keep text */
+    }
+    const headers: Record<string, string> = { ...JSON_HEADERS };
+    const retryAfter = resp.headers.get("retry-after");
+    if (retryAfter) headers["Retry-After"] = retryAfter;
+    return {
+      status: resp.status,
+      headers,
+      body: { error: chatErrorToResponseError(parsed) },
+    };
+  }
+
+  if (stream) {
+    if (!resp.body) {
+      return {
+        status: 502,
+        headers: JSON_HEADERS,
+        body: { error: { message: "Empty upstream response body", type: "upstream_error" } },
+      };
+    }
+    return {
+      status: 200,
+      headers: { ...SSE_HEADERS },
+      stream: pipeSse(resp.body, onLog),
+    };
+  }
+
+  const data = await resp.json();
+  return { status: 200, headers: JSON_HEADERS, body: data };
 }
 
-async function* streamResponse(opts: {
-  body: Record<string, unknown>;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  onLog?: (line: string) => void;
-}): AsyncGenerator<string> {
-  const url = `${opts.baseUrl}/responses`;
-  const payload = { ...opts.body, model: opts.model, stream: true };
-
+async function* pipeSse(
+  body: ReadableStream<Uint8Array>,
+  onLog?: (line: string) => void,
+): AsyncGenerator<string> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
   try {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${opts.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    log(opts.onLog, `[response] upstream status: ${resp.status}`);
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      let parsed: unknown = text;
-      try { parsed = JSON.parse(text); } catch { /* keep text */ }
-      const errMsg = typeof parsed === "object" && parsed && (parsed as Record<string, unknown>).error
-        ? JSON.stringify((parsed as Record<string, unknown>).error)
-        : text;
-      yield `data: ${JSON.stringify({ type: "error", error: { message: errMsg } })}\n\n`;
-      yield "data: [DONE]\n\n";
-      return;
-    }
-
-    if (!resp.body) {
-      yield `data: ${JSON.stringify({ type: "error", error: { message: "Empty response body" } })}\n\n`;
-      yield "data: [DONE]\n\n";
-      return;
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          yield `${trimmed}\n`;
-        }
-      }
+      yield decoder.decode(value, { stream: true });
     }
-
-    if (buffer.trim()) {
-      yield `${buffer.trim()}\n`;
-    }
+    const tail = decoder.decode();
+    if (tail) yield tail;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    log(opts.onLog, `[response] stream error: ${msg}`);
-    yield `data: ${JSON.stringify({ type: "error", error: { message: msg } })}\n\n`;
-    yield "data: [DONE]\n\n";
+    log(onLog, `[response] stream error: ${msg}`);
+    yield new ChatToResponsesState().failedEvent(msg, "stream_error");
   }
 }
 
