@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getBridgeStatus: () => ipcRenderer.invoke("get-bridge-status"),
 
   launchCodex: () => ipcRenderer.invoke("launch-codex"),
+  killCodex: () => ipcRenderer.invoke("kill-codex"),
 
   onLog: (callback: (line: { text: string; level: string }) => void) =>
     ipcRenderer.on("log-line", (_event, value) => callback(value)),
