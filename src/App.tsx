@@ -188,10 +188,6 @@ function App() {
   };
 
   const handleLaunchCodex = async () => {
-    if (codexRunning) {
-      await window.electronAPI.killCodex();
-      return;
-    }
     await window.electronAPI.writeConfig(config as unknown as Record<string, string>);
     const result = await window.electronAPI.launchCodex();
     if (result.ok) {
@@ -243,10 +239,10 @@ function App() {
         </div>
         <div className="actionbar-right">
           <button
-            className={`launch-btn ${codexRunning ? "kill" : ""}`}
+            className={`launch-btn ${codexRunning ? "active" : ""}`}
             onClick={handleLaunchCodex}
           >
-            {codexRunning ? "Kill Codex" : "Launch Codex"}
+            Launch Codex
           </button>
         </div>
       </div>

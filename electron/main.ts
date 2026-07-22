@@ -60,57 +60,6 @@ function queryCodexProcessRunning(): Promise<boolean> {
   });
 }
 
-function killCodexProcess(): Promise<{ ok: boolean; killed: number }> {
-  if (process.platform !== "win32") {
-    return Promise.resolve({ ok: false, killed: 0 });
-  }
-
-  const ps = [
-    "$procs = @(Get-CimInstance Win32_Process | Where-Object {",
-    "  ($_.Name -match '(?i)^codex\\.exe$') -or",
-    "  ($_.ExecutablePath -and $_.ExecutablePath -match '(?i)OpenAI\\.Codex') -or",
-    "  ($_.CommandLine -and $_.CommandLine -match '(?i)OpenAI\\.Codex')",
-    "})",
-    "$killed = 0",
-    "foreach ($p in $procs) {",
-    "  try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop; $killed++ } catch {}",
-    "}",
-    "Write-Output $killed",
-  ].join(" ");
-
-  const encoded = toPowerShellEncodedCommand(ps);
-  return new Promise((resolve) => {
-    exec(
-      `powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`,
-      { windowsHide: true },
-      (err, stdout) => {
-        if (err) {
-          exec("taskkill /F /IM codex.exe /T", { windowsHide: true }, (err2) => {
-            resolve({ ok: !err2, killed: err2 ? 0 : 1 });
-          });
-          return;
-        }
-        const killed = parseInt(stdout.trim(), 10);
-        resolve({ ok: true, killed: Number.isNaN(killed) ? 0 : killed });
-      },
-    );
-  });
-}
-
-async function killCodexAndReport(): Promise<{ ok: boolean; killed: number }> {
-  const result = await killCodexProcess();
-  if (result.ok && result.killed > 0) {
-    sendLog(`Killed ${result.killed} Codex process(es)`, "success");
-  } else if (result.ok) {
-    sendLog("No Codex process found", "info");
-  } else {
-    sendLog("Failed to kill Codex process", "error");
-  }
-  setTimeout(checkCodexRunning, 500);
-  setTimeout(checkCodexRunning, 2000);
-  return result;
-}
-
 function publishCodexRunningState(running: boolean) {
   if (running !== lastCodexRunning) {
     lastCodexRunning = running;
@@ -220,20 +169,7 @@ function createTray() {
     },
     { type: "separator" },
     {
-      label: "Launch Codex",
-      click: () => {
-        launchCodexApp("tray");
-      },
-    },
-    {
-      label: "Kill Codex",
-      click: () => {
-        void killCodexAndReport();
-      },
-    },
-    { type: "separator" },
-    {
-      label: "Quit Codex Bridge",
+      label: "Quit",
       click: () => {
         isQuitting = true;
         stopBridgeGracefully();
@@ -640,8 +576,6 @@ ipcMain.handle("get-codex-status", async () => {
   return { running };
 });
 
-ipcMain.handle("kill-codex", () => killCodexAndReport());
-
 ipcMain.handle("set-window-theme", async (_event, mode: string) => {
   if (mode === "light" || mode === "dark" || mode === "system") {
     appThemeMode = mode;
@@ -675,20 +609,19 @@ function findCodexExe(): string | null {
   return null;
 }
 
-function launchCodexApp(source: "main" | "tray"): { ok: boolean; error?: string } {
+ipcMain.handle("launch-codex", async () => {
   // Try launching via Windows Store AUMID (no ACL issues, no extra CMD window)
   const aumid = "OpenAI.Codex_2p2nqsd0c76g0!App";
-  const tag = source === "tray" ? " (tray)" : "";
   try {
     spawn("explorer.exe", [`shell:AppsFolder\\${aumid}`], {
       windowsHide: false,
       detached: true,
     });
-    sendLog(`Launched Codex${tag}`, "success");
+    sendLog("Launched Codex", "success");
     scheduleCodexStartupChecks();
     checkCodexRunning();
     return { ok: true };
-  } catch {
+  } catch (e) {
     // Fallback: try direct exe via start cmd /k
     const codex = findCodexExe();
     if (codex) {
@@ -696,7 +629,7 @@ function launchCodexApp(source: "main" | "tray"): { ok: boolean; error?: string 
         windowsHide: false,
         detached: true,
       });
-      sendLog(`Launched Codex (fallback${tag})`, "success");
+      sendLog("Launched Codex (fallback)", "success");
       scheduleCodexStartupChecks();
       checkCodexRunning();
       return { ok: true };
@@ -704,6 +637,4 @@ function launchCodexApp(source: "main" | "tray"): { ok: boolean; error?: string 
     sendLog("Codex not found. Install from Windows Store first.", "error");
     return { ok: false, error: "Codex not found" };
   }
-}
-
-ipcMain.handle("launch-codex", async () => launchCodexApp("main"));
+});

@@ -341,15 +341,6 @@ button,
   display: none;
 }
 
-.launch-btn.kill {
-  background: var(--danger);
-  color: #fff;
-}
-
-.launch-btn.kill::before {
-  display: none;
-}
-
 /* ─── Theme Dropdown ────────────────────────────────── */
 
 .theme-menu-wrapper {
