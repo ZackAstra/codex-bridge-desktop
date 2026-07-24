@@ -12,3 +12,6 @@ Thumbs.db
 Codex Bridge Setup *.exe
 Codex Bridge Setup *.exe.blockmap
 _release/
+
+# pnpm store
+.pnpm-store/
