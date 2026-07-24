@@ -1,0 +1,223 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图标预览 - 实际 App 场景对比</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: "Segoe UI", system-ui, sans-serif; background: #1e1e1e; color: #fff; }
+.container { display: flex; height: 100vh; }
+
+/* 左侧旧版 */
+.panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.panel.old { border-right: 2px solid #555; }
+.panel.new { border-right: none; }
+
+.panel-header {
+  padding: 10px 16px; font-size: 14px; font-weight: 700; text-align: center;
+  flex-shrink: 0;
+}
+.panel.old .panel-header { background: #553; color: #cc0; }
+.panel.new .panel-header { background: #353; color: #0c0; }
+
+.panel-body {
+  flex: 1; display: flex; flex-direction: column; padding: 12px; gap: 16px;
+  overflow-y: auto;
+}
+
+/* 模拟侧边栏 */
+.sidebar-mock {
+  background: #252525; border-radius: 10px; padding: 12px 8px; width: 160px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.sidebar-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border-radius: 8px; cursor: pointer; font-size: 13px; color: #ccc;
+  transition: background 0.15s;
+}
+.sidebar-item:hover { background: rgba(255,255,255,0.08); }
+.sidebar-item-icon { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
+.sidebar-item.active { background: rgba(10,132,255,0.2); color: #0a84ff; }
+
+/* 主题切换按钮 */
+.theme-bar {
+  display: flex; gap: 8px; padding: 8px; background: #252525; border-radius: 10px;
+  align-items: center;
+}
+.theme-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 8px; border: none;
+  background: transparent; color: #aaa; cursor: pointer;
+}
+.theme-btn:hover { background: rgba(255,255,255,0.08); }
+
+/* 放大镜 */
+.zoom-view {
+  background: #252525; border-radius: 10px; padding: 16px; text-align: center;
+}
+.zoom-view .icon-row {
+  display: flex; gap: 16px; align-items: center; justify-content: center;
+}
+.zoom-view .icon-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.zoom-view .icon-box {
+  width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+  background: #000; border-radius: 8px; position: relative;
+}
+.zoom-view .icon-box::after {
+  content: ""; position: absolute; inset: 0;
+  border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px;
+  pointer-events: none;
+}
+.zoom-view .vbox-label {
+  font-size: 9px; color: #888; font-family: monospace;
+}
+
+.section-label {
+  font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px;
+  padding: 4px 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="panel old">
+    <div class="panel-header">旧版 — viewBox="0 0 24 24"</div>
+    <div class="panel-body" id="oldPanel"></div>
+  </div>
+  <div class="panel new">
+    <div class="panel-header">新版 — 优化 viewBox</div>
+    <div class="panel-body" id="newPanel"></div>
+  </div>
+</div>
+
+<script>
+const icons = [
+  {
+    name: "ConfigIcon",
+    oldVB: "0 0 24 24",
+    newVB: "1 1 22 22",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>`
+  },
+  {
+    name: "LogIcon",
+    oldVB: "0 0 24 24",
+    newVB: "5 1 16 22",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>`
+  },
+  {
+    name: "ChevronLeft",
+    oldVB: "0 0 24 24",
+    newVB: "8 5 8 14",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m15 18-6-6 6-6"/>
+    </svg>`
+  },
+  {
+    name: "ChevronRight",
+    oldVB: "0 0 24 24",
+    newVB: "8 5 8 14",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m9 18 6-6-6-6"/>
+    </svg>`
+  },
+  {
+    name: "SunIcon",
+    oldVB: "0 0 24 24",
+    newVB: "1 1 22 22",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/><path d="M12 20v2"/>
+      <path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
+      <path d="M2 12h2"/><path d="M20 12h2"/>
+      <path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+    </svg>`
+  },
+  {
+    name: "MoonIcon",
+    oldVB: "0 0 24 24",
+    newVB: "2 2 20 20",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+    </svg>`
+  },
+  {
+    name: "MonitorIcon",
+    oldVB: "0 0 24 24",
+    newVB: "1 2 22 20",
+    svg: `<svg width="16" height="16" viewBox="__VB__" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="20" height="14" x="2" y="3" rx="2"/>
+      <line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
+    </svg>`
+  }
+];
+
+function buildPanel(panelId, isNew) {
+  const panel = document.getElementById(panelId);
+  const vbKey = isNew ? "newVB" : "oldVB";
+
+  // Sidebar mock
+  panel.innerHTML += '<div class="section-label">侧边栏 (16px 图标)</div>';
+  panel.innerHTML += `
+    <div class="sidebar-mock">
+      <div class="sidebar-item active">
+        <span class="sidebar-item-icon">${icons[0].svg.replace("__VB__", icons[0][vbKey])}</span>
+        <span>配置</span>
+      </div>
+      <div class="sidebar-item">
+        <span class="sidebar-item-icon">${icons[1].svg.replace("__VB__", icons[1][vbKey])}</span>
+        <span>日志</span>
+      </div>
+    </div>`;
+
+  // Theme bar
+  panel.innerHTML += '<div class="section-label">主题切换 (16px 图标)</div>';
+  panel.innerHTML += `
+    <div class="theme-bar">
+      <button class="theme-btn">${icons[4].svg.replace("__VB__", icons[4][vbKey])}</button>
+      <button class="theme-btn">${icons[5].svg.replace("__VB__", icons[5][vbKey])}</button>
+      <button class="theme-btn">${icons[6].svg.replace("__VB__", icons[6][vbKey])}</button>
+      <span style="font-size:12px;color:#888;">主题</span>
+    </div>`;
+
+  // Chevron buttons
+  panel.innerHTML += '<div class="section-label">折叠按钮 (16px 图标)</div>';
+  panel.innerHTML += `
+    <div class="theme-bar">
+      <button class="theme-btn">${icons[2].svg.replace("__VB__", icons[2][vbKey])}</button>
+      <button class="theme-btn">${icons[3].svg.replace("__VB__", icons[3][vbKey])}</button>
+      <span style="font-size:12px;color:#888;">展开 / 收起</span>
+    </div>`;
+
+  // Zoom view
+  panel.innerHTML += '<div class="section-label">放大镜 (64px 容器, 48px 图标)</div>';
+  icons.forEach(icon => {
+    const svg48 = icon.svg.replace("__VB__", icon[vbKey]).replace(/width="16"/, 'width="48"').replace(/height="16"/, 'height="48"');
+    panel.innerHTML += `
+      <div class="zoom-view">
+        <div class="icon-row">
+          <div class="icon-cell">
+            <div class="icon-box">${svg48}</div>
+            <span style="font-size:12px;color:#aaa;">${icon.name}</span>
+            <span class="vbox-label">${icon[vbKey]}</span>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+
+buildPanel("oldPanel", false);
+buildPanel("newPanel", true);
+</script>
+</body>
+</html>

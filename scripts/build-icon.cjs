@@ -1,4 +1,4 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
 const pngToIco = require("png-to-ico").default;
@@ -12,7 +12,8 @@ const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
 async function resizePng(size) {
   return sharp(src)
-    .resize(size, size, { fit: "contain", background: TRANSPARENT })
+    .trim()
+    .resize(size, size, { fit: "cover", position: "center" })
     .ensureAlpha()
     .png({ compressionLevel: 9, palette: false })
     .toBuffer();
