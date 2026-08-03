@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, Tray } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, Tray } from "electron";
 import path from "path";
 import fs from "fs";
 import { spawn, exec } from "child_process";
@@ -19,6 +19,24 @@ let tray: Electron.Tray | null = null;
 let lastCodexRunning = false;
 let isQuitting = false;
 let appThemeMode: "light" | "dark" | "system" = "system";
+
+// 单实例锁：已运行时重复启动，提示后聚焦已有窗口，新实例直接退出
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    dialog.showMessageBoxSync({
+      type: "warning",
+      title: "Codex Bridge",
+      message: "正在运行，勿重复打开",
+    });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 function toPowerShellEncodedCommand(script: string): string {
   return Buffer.from(script, "utf16le").toString("base64");
@@ -303,6 +321,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   migrateLegacyEnvIfNeeded();
   createWindow();
   createTray();

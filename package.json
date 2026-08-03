@@ -1,7 +1,7 @@
 {
   "name": "codex-bridge-desktop",
   "private": true,
-  "version": "2.0.7",
+  "version": "2.0.8",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -47,7 +47,8 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "Codex-Bridge-Setup-${version}.${ext}"
     },
     "nsis": {
       "differentialPackage": false
