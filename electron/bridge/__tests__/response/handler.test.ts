@@ -124,4 +124,42 @@ describe("response upstream handler", () => {
     expect(out).toContain('"status":"failed"');
     expect(out).toContain("connection reset");
   });
+  it("remaps reasoning effort only for native deepseek upstream", async () => {
+    loadSettings({
+      UPSTREAM_FORMAT: "response",
+      RESPONSE_API_KEY: "sk-test",
+      RESPONSE_BASE_URL: "https://api.deepseek.com/v1",
+      RESPONSE_MODEL: "deepseek-v4-flash",
+    });
+    const fetchMock = vi.fn(async () => jsonResp(200, { status: "completed" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await handleResponse({ model: "m", reasoning: { effort: "medium", summary: "auto" } });
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.deepseek.com/v1/responses");
+    let sent = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(sent.reasoning).toEqual({ effort: "high", summary: "auto" });
+
+    await handleResponse({ model: "m", reasoning: { effort: "low" } });
+    sent = JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body));
+    expect(sent.reasoning.effort).toBe("low");
+
+    await handleResponse({ model: "m", reasoning: { effort: "xhigh" } });
+    sent = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+    expect(sent.reasoning.effort).toBe("max");
+  });
+
+  it("keeps reasoning effort untouched for platform-level responses upstream", async () => {
+    loadSettings({
+      UPSTREAM_FORMAT: "response",
+      RESPONSE_API_KEY: "sk-test",
+      RESPONSE_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3",
+      RESPONSE_MODEL: "deepseek-v4-flash",
+    });
+    const fetchMock = vi.fn(async () => jsonResp(200, { status: "completed" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await handleResponse({ model: "m", reasoning: { effort: "medium" } });
+    const sent = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+    expect(sent.reasoning.effort).toBe("medium");
+  });
 });

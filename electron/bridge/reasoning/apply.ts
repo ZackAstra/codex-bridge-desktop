@@ -227,6 +227,10 @@ export function mapReasoningEffort(effort: string, mode = "passthrough"): string
   if (mode === "deepseek") {
     return e === "max" || e === "xhigh" ? "max" : "high";
   }
+  if (mode === "deepseek_responses") {
+    if (e === "minimal" || e === "low") return "low";
+    return e === "max" || e === "xhigh" ? "max" : "high";
+  }
   if (mode === "low_high") {
     return e === "minimal" || e === "low" ? "low" : "high";
   }

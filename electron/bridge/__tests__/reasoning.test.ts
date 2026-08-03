@@ -3,6 +3,7 @@ import {
   applyAnthropicReasoningOptions,
   applyReasoningOptions,
   collapseSystemMessagesToHead,
+  mapReasoningEffort,
 } from "../reasoning/apply";
 import {
   CodexChatReasoningConfig,
@@ -50,6 +51,15 @@ describe("reasoning", () => {
     applyReasoningOptions(result, { reasoning: { effort: "xhigh" } }, "deepseek-v4", config);
     expect(result.thinking).toEqual({ type: "enabled" });
     expect(result.reasoning_effort).toBe("max");
+  });
+
+  it("mapReasoningEffort deepseek_responses keeps low and caps at max", () => {
+    expect(mapReasoningEffort("minimal", "deepseek_responses")).toBe("low");
+    expect(mapReasoningEffort("low", "deepseek_responses")).toBe("low");
+    expect(mapReasoningEffort("medium", "deepseek_responses")).toBe("high");
+    expect(mapReasoningEffort("high", "deepseek_responses")).toBe("high");
+    expect(mapReasoningEffort("xhigh", "deepseek_responses")).toBe("max");
+    expect(mapReasoningEffort("max", "deepseek_responses")).toBe("max");
   });
 
   it("apply anthropic thinking enabled", () => {

@@ -1,6 +1,7 @@
 import { getSettings } from "../../config";
 import { chatErrorToResponseError } from "../openai/errors";
 import { ChatToResponsesState } from "../openai/streamState";
+import { adaptNativeDeepseekPayload, isNativeDeepseekResponsesUrl } from "./deepseek";
 
 export interface ResponseHandlerResult {
   status: number;
@@ -40,6 +41,11 @@ export async function handleResponse(
   const stream = Boolean(body.stream);
   const payload: Record<string, unknown> = { ...body, model, stream };
   delete payload.upstream_format;
+
+  if (isNativeDeepseekResponsesUrl(baseUrl)) {
+    adaptNativeDeepseekPayload(payload);
+    log(onLog, "[response] native deepseek upstream detected, payload adapted");
+  }
 
   log(onLog, `[response] ${stream ? "streaming" : "non-stream"} mode: model=${model}`);
 
