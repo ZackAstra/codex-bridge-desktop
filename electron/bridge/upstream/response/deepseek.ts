@@ -10,6 +10,10 @@ export function isNativeDeepseekResponsesUrl(baseUrl: string): boolean {
   }
 }
 
+export function normalizeNativeDeepseekBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.toLowerCase().endsWith("/v1") ? trimmed.slice(0, -3) : trimmed;
+}
 export function adaptNativeDeepseekPayload(payload: Record<string, unknown>): void {
   const reasoning = payload.reasoning;
   if (typeof reasoning !== "object" || !reasoning) return;

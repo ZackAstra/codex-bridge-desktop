@@ -1,7 +1,7 @@
 import { getSettings } from "../../config";
 import { chatErrorToResponseError } from "../openai/errors";
 import { ChatToResponsesState } from "../openai/streamState";
-import { adaptNativeDeepseekPayload, isNativeDeepseekResponsesUrl } from "./deepseek";
+import { adaptNativeDeepseekPayload, isNativeDeepseekResponsesUrl, normalizeNativeDeepseekBaseUrl } from "./deepseek";
 
 export interface ResponseHandlerResult {
   status: number;
@@ -20,13 +20,18 @@ const SSE_HEADERS: Record<string, string> = {
   "Transfer-Encoding": "chunked",
 };
 
+export function responsesEndpointUrl(baseUrl: string): string {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.toLowerCase().endsWith("/responses") ? trimmed : `${trimmed}/responses`;
+}
+
 export async function handleResponse(
   body: Record<string, unknown>,
   onLog?: (line: string) => void,
 ): Promise<ResponseHandlerResult> {
   const settings = getSettings();
   const apiKey = settings.responseApiKey;
-  const baseUrl = settings.responseBaseUrl.replace(/\/$/, "");
+  let baseUrl = settings.responseBaseUrl.replace(/\/+$/, "");
   const model = settings.responseModel || String(body.model || "");
 
   if (!apiKey) {
@@ -43,15 +48,17 @@ export async function handleResponse(
   delete payload.upstream_format;
 
   if (isNativeDeepseekResponsesUrl(baseUrl)) {
+    baseUrl = normalizeNativeDeepseekBaseUrl(baseUrl);
     adaptNativeDeepseekPayload(payload);
     log(onLog, "[response] native deepseek upstream detected, payload adapted");
   }
 
   log(onLog, `[response] ${stream ? "streaming" : "non-stream"} mode: model=${model}`);
+  log(onLog, `[response] upstream POST ${responsesEndpointUrl(baseUrl)}`);
 
   let resp: Response;
   try {
-    resp = await fetch(`${baseUrl}/responses`, {
+    resp = await fetch(responsesEndpointUrl(baseUrl), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

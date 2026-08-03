@@ -51,7 +51,7 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
             className={`seg-btn ${config.UPSTREAM_FORMAT === "response" ? "active" : ""}`}
             onClick={() => setFormat("response")}
           >
-            Response
+            Responses
           </button>
         </div>
       </div>
@@ -128,11 +128,11 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
         </>
       )}
 
-      {/* Response tab */}
+      {/* Responses tab */}
       {isResponse && (
         <>
           <div className="card-title" style={{ marginTop: 12 }}>
-            Response Upstream
+            Responses Upstream
           </div>
           <div className="field">
             <label>API Key</label>
@@ -153,7 +153,7 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
             />
           </div>
           <div className="field">
-            <label>Response Base URL</label>
+            <label>Responses Base URL</label>
             <input
               type="text"
               placeholder="https://api.openai.com/v1"

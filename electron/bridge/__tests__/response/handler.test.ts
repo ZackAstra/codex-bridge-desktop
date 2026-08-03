@@ -135,7 +135,7 @@ describe("response upstream handler", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await handleResponse({ model: "m", reasoning: { effort: "medium", summary: "auto" } });
-    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.deepseek.com/v1/responses");
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.deepseek.com/responses");
     let sent = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
     expect(sent.reasoning).toEqual({ effort: "high", summary: "auto" });
 
@@ -148,6 +148,28 @@ describe("response upstream handler", () => {
     expect(sent.reasoning.effort).toBe("max");
   });
 
+  it("normalizes native deepseek base url variants to the canonical endpoint", async () => {
+    const variants: [string, string][] = [
+      ["https://api.deepseek.com", "https://api.deepseek.com/responses"],
+      ["https://api.deepseek.com/", "https://api.deepseek.com/responses"],
+      ["https://api.deepseek.com/v1", "https://api.deepseek.com/responses"],
+      ["https://api.deepseek.com/v1/", "https://api.deepseek.com/responses"],
+      ["https://api.deepseek.com/responses", "https://api.deepseek.com/responses"],
+    ];
+    const fetchMock = vi.fn(async () => jsonResp(200, { status: "completed" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    for (const [baseUrl, expected] of variants) {
+      loadSettings({
+        UPSTREAM_FORMAT: "response",
+        RESPONSE_API_KEY: "sk-test",
+        RESPONSE_BASE_URL: baseUrl,
+      });
+      fetchMock.mockClear();
+      await handleResponse({ model: "m" });
+      expect(String(fetchMock.mock.calls[0][0])).toBe(expected);
+    }
+  });
   it("keeps reasoning effort untouched for platform-level responses upstream", async () => {
     loadSettings({
       UPSTREAM_FORMAT: "response",

@@ -402,7 +402,7 @@ function writeEnv(data: Record<string, string>) {
     `OPENAI_MODEL=${data.OPENAI_MODEL || ""}`,
     `OPENAI_BASE_URL=${data.OPENAI_BASE_URL || ""}`,
     "",
-    `# Response (Responses API) upstream`,
+    `# Responses (Responses API) upstream`,
     `RESPONSE_API_KEY=${data.RESPONSE_API_KEY || ""}`,
     `RESPONSE_MODEL=${data.RESPONSE_MODEL || ""}`,
     `RESPONSE_BASE_URL=${data.RESPONSE_BASE_URL || ""}`,
