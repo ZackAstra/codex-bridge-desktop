@@ -1,4 +1,4 @@
-; 自定义“应用正在运行”检测：
+﻿; 自定义“应用正在运行”检测：
 ; 安装/升级时若检测到 Codex Bridge 正在运行，弹出中文提示；
 ; 点击“确定”（或静默安装 /S）自动关闭旧进程后继续，点击“取消”退出安装。
 !include "getProcessInfo.nsh"
@@ -28,4 +28,17 @@ Var pid
       Sleep 500
     ${endIf}
   ${endIf}
+!macroend
+
+; 跳过冗余重装：检测到已安装相同版本时，直接启动已安装的应用并静默退出安装器。
+!macro customInit
+  ${IfNot} ${Silent}
+    ReadRegStr $0 HKCU "${UNINSTALL_REGISTRY_KEY}" "DisplayVersion"
+    ${If} $0 == "${VERSION}"
+      ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+        Exec '"$INSTDIR\${APP_EXECUTABLE_FILENAME}"'
+        Abort
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
 !macroend

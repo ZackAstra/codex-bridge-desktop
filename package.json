@@ -1,7 +1,7 @@
 {
   "name": "codex-bridge-desktop",
   "private": true,
-  "version": "2.0.8",
+  "version": "2.0.9",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -51,7 +51,13 @@
       "artifactName": "Codex-Bridge-Setup-${version}.${ext}"
     },
     "nsis": {
-      "differentialPackage": false
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "differentialPackage": false,
+      "include": "build/installer.nsh"
     }
   }
 }

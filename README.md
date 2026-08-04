@@ -2,6 +2,14 @@
 
 > 一个 Electron 桌面应用，用于管理和桥接 Codex CLI 与多种 LLM 提供商（OpenAI / Anthropic）之间的连接。
 
+## 安装与启动
+
+Release 只发布一个 `Codex-Bridge-Setup-<version>.exe`（NSIS 一键安装）：
+
+- **首次使用**：运行 Setup，自动安装到 `%LocalAppData%\Programs` 并创建桌面 / 开始菜单快捷方式，安装完成后自动启动。
+- **之后启动**：使用桌面或开始菜单的 "Codex Bridge" 快捷方式，直接运行已安装的 exe，无安装开销。
+- **重复运行同版本 Setup**：检测到已安装相同版本时，跳过安装、直接启动已安装的应用（静默退出安装器）。
+- **升级**：运行新版本 Setup，正常覆盖安装。
 ## 功能
 
 - **配置管理** - 可视化编辑 Codex 环境变量（API Key、模型、Base URL、端口等）
