@@ -13,9 +13,11 @@ Release 只发布一个 `Codex-Bridge-Setup-<version>.exe`（NSIS 一键安装�
 ## 功能
 
 - **配置管理** - 可视化编辑 Codex 环境变量（API Key、模型、Base URL、端口等）
-- **Bridge 服务器** - 内置上游代理服务，支持 OpenAI 和 Anthropic 两种协议格式
+- **Bridge 服务器** - 内置上游代理服务，支持 Anthropic / OpenAI / Responses 三种上游协议格式（含 DeepSeek 原生 Responses API 适配）
 - **Codex 启动器** - 一键启动 Codex CLI 并自动检测运行状态
-- **实时日志** - 查看 Bridge 服务器和应用的实时日志输出
+- **实时日志** - 查看 Bridge 服务器和应用的实时日志输出，并按天持久化到日志文件（带会话分隔符）
+- **系统托盘** - 最小化到托盘，托盘菜单支持显示窗口 / 退出等操作
+- **单实例运行** - 重复启动时提示并聚焦已有窗口，避免多开
 - **主题切换** - 支持浅色 / 深色 / 跟随系统主题
 - **Electron Builder** - 支持打包为 Windows 安装程序
 
@@ -36,6 +38,7 @@ codex-bridge-desktop/
 |       +-- upstream/
 |       |   +-- openai/          # OpenAI 协议适配
 |       |   +-- anthropic/       # Anthropic 协议适配
+|       |   +-- response/        # Responses 协议适配（含 DeepSeek 原生支持）
 |       +-- __tests__/           # Bridge 单元测试
 +-- src/
 |   +-- main.tsx                 # React 入口
@@ -45,8 +48,9 @@ codex-bridge-desktop/
 |   +-- styles/index.css         # 全局样式
 +-- scripts/
 |   +-- build-icon.cjs           # 图标生成脚本
+|   +-- run-electron-builder.cjs # electron-builder 打包脚本
 |   +-- run-vite.cjs             # Vite 开发服务器启动
-+-- build/                       # 构建资源（图标）
++-- build/                       # 构建资源（图标、NSIS 安装脚本）
 +-- public/                      # 静态资源
 +-- package.json
 +-- vite.config.ts               # Vite 配置
@@ -114,10 +118,14 @@ npm run build:icon
 | ANTHROPIC_MODEL | Anthropic 模型名 | - |
 | ANTHROPIC_BASE_URL | Anthropic 协议 Base URL | https://api.minimaxi.com/anthropic |
 | OPENAI_API_KEY | OpenAI API Key | 同 ANTHROPIC_AUTH_TOKEN |
-| OPENAI_BASE_URL | OpenAI Base URL | https://api.openai.com/v1 |
-| UPSTREAM_FORMAT | 上游协议格式 | anthropic |
+| OPENAI_BASE_URL | OpenAI Base URL | https://api.deepseek.com/v1 |
+| RESPONSE_API_KEY | Responses API Key | - |
+| RESPONSE_BASE_URL | Responses Base URL | https://api.openai.com/v1 |
+| RESPONSE_MODEL | Responses 模型名 | - |
+| UPSTREAM_FORMAT | 上游协议格式（anthropic / openai / response） | anthropic |
 | CODEX_MODEL | Codex 模型名 | - |
 | CODEX_PROVIDER | Codex 提供商 | bridge |
+| CODEX_CHAT_REASONING_MODE | 推理强度模式 | auto |
 | BRIDGE_PORT | Bridge 服务端口 | 8000 |
 
 ## 技术栈
