@@ -1129,21 +1129,6 @@ input:checked + .toggle-slider::before {
 }
 /* ─── Upstream Group Bar ───────────────────────────── */
 
-.upstream-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.upstream-group-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .group-seg {
   flex-wrap: wrap;
   max-width: 100%;
@@ -1195,6 +1180,7 @@ input:checked + .toggle-slider::before {
   border-radius: 6px;
   padding: 7px 12px;
   transition: background 0.15s;
+  margin-left: auto;
 }
 
 .group-done-btn:hover {

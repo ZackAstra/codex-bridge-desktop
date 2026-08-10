@@ -133,7 +133,7 @@ npm run build:icon
 
 每种上游格式（`anthropic` / `openai` / `response`）下可保存多组「API Key + 模型名 + Base URL」预设，互不干扰：
 
-- 在对应格式的 "Xxx Upstream" 标题右侧的分组栏中切换分组，默认选中该格式最近使用的一组；
+- 在对应格式的 "Xxx Upstream" 标题下方的 "Label" 行中切换分组（`✓ 完成` 按钮固定贴最右侧），默认选中该格式最近使用的一组；
 - 点击 `+` 新增分组：分组名在按钮栏内直接编辑（默认 `新分组N`，自动递增不重名），完成后点击 `✓` 保存；
 - 双击分组名可直接重命名，同样通过 `✓` 保存；
 - 分组独立保存于应用数据目录的 `upstream-groups.json`，不影响 `.env` 与 `config.toml`；

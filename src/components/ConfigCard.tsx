@@ -141,7 +141,7 @@ export default function ConfigCard({
   );
 
   const groupBar = (
-    <div className="upstream-group-bar">
+    <>
       <div className="seg-control group-seg">
         {groupList.length === 0 ? (
           editMode === "add" ? (
@@ -186,7 +186,7 @@ export default function ConfigCard({
           ✓
         </button>
       )}
-    </div>
+    </>
   );
 
   return (
@@ -219,10 +219,11 @@ export default function ConfigCard({
       {/* Anthropic tab */}
       {!isOpenAI && !isResponse && (
         <>
-          <div className="upstream-header-row">
-            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
-              Anthropic Upstream
-            </div>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            Anthropic Upstream
+          </div>
+          <div className="field">
+            <label>Label</label>
             {groupBar}
           </div>
           <div className="field">
@@ -258,10 +259,11 @@ export default function ConfigCard({
       {/* OpenAI tab */}
       {isOpenAI && !isResponse && (
         <>
-          <div className="upstream-header-row">
-            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
-              OpenAI Upstream
-            </div>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            OpenAI Upstream
+          </div>
+          <div className="field">
+            <label>Label</label>
             {groupBar}
           </div>
           <div className="field">
@@ -297,10 +299,11 @@ export default function ConfigCard({
       {/* Responses tab */}
       {isResponse && (
         <>
-          <div className="upstream-header-row">
-            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
-              Responses Upstream
-            </div>
+          <div className="card-title" style={{ marginTop: 12 }}>
+            Responses Upstream
+          </div>
+          <div className="field">
+            <label>Label</label>
             {groupBar}
           </div>
           <div className="field">
