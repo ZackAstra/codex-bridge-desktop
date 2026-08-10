@@ -1,21 +1,60 @@
-﻿import { ConfigData } from "../App";
+﻿import { useState } from "react";
+import { ConfigData, UpstreamGroup, UpstreamGroupMap, FORMAT_KEYS } from "../App";
 import ReasoningModeSelect from "./ReasoningModeSelect";
 
 interface Props {
   config: ConfigData;
   onChange: (c: ConfigData) => void;
   onSave: (c: ConfigData) => void;
+  groups: UpstreamGroupMap;
+  onGroupsChange: (next: UpstreamGroupMap) => void;
+  activeGroupId: string | null;
+  onActiveGroupChange: (id: string | null) => void;
+  onSelectGroup: (format: ConfigData["UPSTREAM_FORMAT"], group: UpstreamGroup) => void;
 }
 
-export default function ConfigCard({ config, onChange, onSave }: Props) {
+function genGroupId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function nextGroupName(list: UpstreamGroup[]): string {
+  const used = new Set(list.map((g) => g.name));
+  let n = 1;
+  while (used.has(`新分组${n}`)) n += 1;
+  return `新分组${n}`;
+}
+
+export default function ConfigCard({
+  config,
+  onChange,
+  onSave,
+  groups,
+  onGroupsChange,
+  activeGroupId,
+  onActiveGroupChange,
+  onSelectGroup,
+}: Props) {
   const isOpenAI = config.UPSTREAM_FORMAT === "openai";
   const isResponse = config.UPSTREAM_FORMAT === "response";
+  const format = config.UPSTREAM_FORMAT;
+  const groupList = groups[format] || [];
+
+  const [editMode, setEditMode] = useState<null | "add" | "rename">(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
 
   const update = (key: keyof ConfigData, value: string) => {
     onChange({ ...config, [key]: value });
   };
 
+  const clearEdit = () => {
+    setEditMode(null);
+    setEditId(null);
+    setDraftName("");
+  };
+
   const setFormat = (format: "anthropic" | "openai" | "response") => {
+    clearEdit();
     const next: ConfigData = { ...config, UPSTREAM_FORMAT: format };
     if (format === "openai" && !next.OPENAI_BASE_URL) {
       next.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
@@ -26,8 +65,129 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
     if (format === "response" && !next.RESPONSE_BASE_URL) {
       next.RESPONSE_BASE_URL = "https://api.openai.com/v1";
     }
+    const list = groups[format] || [];
+    if (list.length > 0) {
+      const recent = [...list].sort((a, b) => b.selectedAt - a.selectedAt)[0];
+      const keys = FORMAT_KEYS[format];
+      next[keys.apiKey] = recent.apiKey;
+      next[keys.model] = recent.model;
+      next[keys.baseUrl] = recent.baseUrl;
+      onActiveGroupChange(recent.id);
+    } else {
+      onActiveGroupChange(null);
+    }
     onChange(next);
   };
+
+  const selectGroup = (g: UpstreamGroup) => {
+    clearEdit();
+    onSelectGroup(format, g);
+  };
+
+  const handleAdd = () => {
+    setEditMode("add");
+    setEditId(null);
+    setDraftName(nextGroupName(groupList));
+  };
+
+  const handleDoubleClick = (g: UpstreamGroup) => {
+    if (editMode === "add") return;
+    setEditMode("rename");
+    setEditId(g.id);
+    setDraftName(g.name);
+  };
+
+  const handleDone = () => {
+    const name = draftName.trim();
+    if (editMode === "add") {
+      const keys = FORMAT_KEYS[format];
+      const newGroup: UpstreamGroup = {
+        id: genGroupId(),
+        name: name || nextGroupName(groupList),
+        apiKey: config[keys.apiKey] || "",
+        model: config[keys.model] || "",
+        baseUrl: config[keys.baseUrl] || "",
+        selectedAt: Date.now(),
+      };
+      const next = { ...groups, [format]: [...groupList, newGroup] };
+      onGroupsChange(next);
+      onActiveGroupChange(newGroup.id);
+      clearEdit();
+    } else if (editMode === "rename" && editId) {
+      const target = groupList.find((g) => g.id === editId);
+      if (target) {
+        const next = {
+          ...groups,
+          [format]: groupList.map((g) => (g.id === editId ? { ...g, name: name || target.name } : g)),
+        };
+        onGroupsChange(next);
+      }
+      clearEdit();
+    }
+  };
+
+  const editInput = (
+    <input
+      className="group-name-input"
+      value={draftName}
+      autoFocus
+      onChange={(e) => setDraftName(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") handleDone();
+        if (e.key === "Escape") clearEdit();
+      }}
+    />
+  );
+
+  const groupBar = (
+    <div className="upstream-group-bar">
+      <div className="seg-control group-seg">
+        {groupList.length === 0 ? (
+          editMode === "add" ? (
+            <span className="group-name-input-wrap">{editInput}</span>
+          ) : (
+            <span className={`seg-btn group-name-btn ${activeGroupId === null ? "active" : ""}`}>
+              新分组1
+            </span>
+          )
+        ) : (
+          groupList.map((g) =>
+            editMode === "rename" && editId === g.id ? (
+              <span key={g.id} className="group-name-input-wrap">
+                {editInput}
+              </span>
+            ) : (
+              <button
+                key={g.id}
+                className={`seg-btn group-name-btn ${activeGroupId === g.id ? "active" : ""}`}
+                onClick={() => selectGroup(g)}
+                onDoubleClick={() => handleDoubleClick(g)}
+                title="双击重命名"
+              >
+                {g.name}
+              </button>
+            ),
+          )
+        )}
+        <button
+          className={`seg-btn group-add-btn ${editMode === "add" ? "active" : ""}`}
+          onClick={handleAdd}
+          title="新增分组"
+        >
+          +
+        </button>
+        {editMode === "add" && groupList.length > 0 && (
+          <span className="group-name-input-wrap">{editInput}</span>
+        )}
+      </div>
+      {(editMode === "add" || editMode === "rename") && (
+        <button className="group-done-btn" onClick={handleDone} title="完成保存">
+          ✓
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="card">
@@ -59,8 +219,11 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
       {/* Anthropic tab */}
       {!isOpenAI && !isResponse && (
         <>
-          <div className="card-title" style={{ marginTop: 12 }}>
-            Anthropic Upstream
+          <div className="upstream-header-row">
+            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
+              Anthropic Upstream
+            </div>
+            {groupBar}
           </div>
           <div className="field">
             <label>API Key</label>
@@ -95,8 +258,11 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
       {/* OpenAI tab */}
       {isOpenAI && !isResponse && (
         <>
-          <div className="card-title" style={{ marginTop: 12 }}>
-            OpenAI Upstream
+          <div className="upstream-header-row">
+            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
+              OpenAI Upstream
+            </div>
+            {groupBar}
           </div>
           <div className="field">
             <label>API Key</label>
@@ -131,8 +297,11 @@ export default function ConfigCard({ config, onChange, onSave }: Props) {
       {/* Responses tab */}
       {isResponse && (
         <>
-          <div className="card-title" style={{ marginTop: 12 }}>
-            Responses Upstream
+          <div className="upstream-header-row">
+            <div className="card-title" style={{ marginTop: 12, marginBottom: 0 }}>
+              Responses Upstream
+            </div>
+            {groupBar}
           </div>
           <div className="field">
             <label>API Key</label>

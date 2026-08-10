@@ -12,6 +12,25 @@ function getEnvPath(): string {
   return path.join(app.getPath("userData"), ".env");
 }
 
+function getUpstreamGroupsPath(): string {
+  return path.join(app.getPath("userData"), "upstream-groups.json");
+}
+
+function readUpstreamGroups(): Record<string, unknown> {
+  try {
+    const fp = getUpstreamGroupsPath();
+    if (!fs.existsSync(fp)) return {};
+    return JSON.parse(fs.readFileSync(fp, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeUpstreamGroupsFile(data: Record<string, unknown>): void {
+  fs.mkdirSync(path.dirname(getUpstreamGroupsPath()), { recursive: true });
+  fs.writeFileSync(getUpstreamGroupsPath(), JSON.stringify(data, null, 2), "utf-8");
+}
+
 let bridgeServer: BridgeServer | null = null;
 let mainWindow: any = null;
 let codexCheckInterval: NodeJS.Timeout | null = null;
@@ -582,6 +601,22 @@ ipcMain.handle("write-config", async (_event, payload: Record<string, string>) =
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     sendLog(`Save error: ${msg}`, "error");
+    return { ok: false, error: msg };
+  }
+});
+
+// ─── Upstream groups IPC ─────────────────────────────
+
+ipcMain.handle("read-upstream-groups", async () => readUpstreamGroups());
+
+ipcMain.handle("write-upstream-groups", async (_event, payload: Record<string, unknown>) => {
+  try {
+    writeUpstreamGroupsFile(payload || {});
+    sendLog("Saved upstream groups", "success");
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    sendLog(`Save upstream groups error: ${msg}`, "error");
     return { ok: false, error: msg };
   }
 });

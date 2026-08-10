@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   writeConfig: (config: Record<string, string>) =>
     ipcRenderer.invoke("write-config", config),
 
+  readUpstreamGroups: () => ipcRenderer.invoke("read-upstream-groups"),
+  writeUpstreamGroups: (groups: Record<string, unknown>) =>
+    ipcRenderer.invoke("write-upstream-groups", groups),
+
   startBridge: () => ipcRenderer.invoke("start-bridge"),
   stopBridge: () => ipcRenderer.invoke("stop-bridge"),
   getBridgeStatus: () => ipcRenderer.invoke("get-bridge-status"),

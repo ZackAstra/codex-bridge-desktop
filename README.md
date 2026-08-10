@@ -13,6 +13,7 @@ Release 只发布一个 `Codex-Bridge-Setup-<version>.exe`（NSIS 一键安装�
 ## 功能
 
 - **配置管理** - 可视化编辑 Codex 环境变量（API Key、模型、Base URL、端口等）
+- **上游分组** - 每种上游格式（Anthropic / OpenAI / Responses）可保存多组 Key / 模型 / Base URL 预设，分组栏内一键切换、`+` 新增、双击重命名，默认选中最近使用的一组
 - **Bridge 服务器** - 内置上游代理服务，支持 Anthropic / OpenAI / Responses 三种上游协议格式（含 DeepSeek 原生 Responses API 适配）
 - **Codex 启动器** - 一键启动 Codex CLI 并自动检测运行状态
 - **实时日志** - 查看 Bridge 服务器和应用的实时日志输出，并按天持久化到日志文件（带会话分隔符）
@@ -127,6 +128,18 @@ npm run build:icon
 | CODEX_PROVIDER | Codex 提供商 | bridge |
 | CODEX_CHAT_REASONING_MODE | 推理强度模式 | auto |
 | BRIDGE_PORT | Bridge 服务端口 | 8000 |
+
+## 上游分组
+
+每种上游格式（`anthropic` / `openai` / `response`）下可保存多组「API Key + 模型名 + Base URL」预设，互不干扰：
+
+- 在对应格式的 "Xxx Upstream" 标题右侧的分组栏中切换分组，默认选中该格式最近使用的一组；
+- 点击 `+` 新增分组：分组名在按钮栏内直接编辑（默认 `新分组N`，自动递增不重名），完成后点击 `✓` 保存；
+- 双击分组名可直接重命名，同样通过 `✓` 保存；
+- 分组独立保存于应用数据目录的 `upstream-groups.json`，不影响 `.env` 与 `config.toml`；
+- `Reasoning Mode` 仍按既有规则自动映射，无需手动填写。
+
+> 提示：切换分组仅将该组的 Key / 模型 / Base URL 加载到表单，需点击 **Save Config** 才会写入 `.env` 并生效。
 
 ## 技术栈
 

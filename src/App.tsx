@@ -29,6 +29,68 @@ export interface ConfigData {
   UPSTREAM_FORMAT: "anthropic" | "openai" | "response";
 }
 
+export interface UpstreamGroup {
+  id: string;
+  name: string;
+  apiKey: string;
+  model: string;
+  baseUrl: string;
+  selectedAt: number;
+}
+
+export type UpstreamGroupMap = {
+  anthropic: UpstreamGroup[];
+  openai: UpstreamGroup[];
+  response: UpstreamGroup[];
+};
+
+export const EMPTY_GROUPS: UpstreamGroupMap = {
+  anthropic: [],
+  openai: [],
+  response: [],
+};
+
+export const FORMAT_KEYS = {
+  anthropic: {
+    apiKey: "ANTHROPIC_AUTH_TOKEN",
+    model: "ANTHROPIC_MODEL",
+    baseUrl: "ANTHROPIC_BASE_URL",
+  },
+  openai: {
+    apiKey: "OPENAI_API_KEY",
+    model: "OPENAI_MODEL",
+    baseUrl: "OPENAI_BASE_URL",
+  },
+  response: {
+    apiKey: "RESPONSE_API_KEY",
+    model: "RESPONSE_MODEL",
+    baseUrl: "RESPONSE_BASE_URL",
+  },
+} as const;
+
+function normalizeGroups(raw: Record<string, unknown>): UpstreamGroupMap {
+  const result: UpstreamGroupMap = { anthropic: [], openai: [], response: [] };
+  (["anthropic", "openai", "response"] as const).forEach((key) => {
+    const arr = raw?.[key];
+    if (Array.isArray(arr)) {
+      result[key] = arr
+        .filter(
+          (g): g is Record<string, unknown> =>
+            !!g && typeof g === "object" && typeof (g as UpstreamGroup).name === "string",
+        )
+        .map((g) => ({
+          id: String(g.id || ""),
+          name: String(g.name),
+          apiKey: String(g.apiKey || ""),
+          model: String(g.model || ""),
+          baseUrl: String(g.baseUrl || ""),
+          selectedAt: Number(g.selectedAt) || 0,
+        }));
+    }
+  });
+  return result;
+}
+
 export interface LogLine {
   text: string;
   level: "info" | "success" | "error" | "warn";
@@ -75,6 +137,8 @@ function App() {
     UPSTREAM_FORMAT: "anthropic",
   });
   const [logs, setLogs] = useState<LogLine[]>([]);
+  const [upstreamGroups, setUpstreamGroups] = useState<UpstreamGroupMap>(EMPTY_GROUPS);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [bridgeRunning, setBridgeRunning] = useState(false);
   const [codexRunning, setCodexRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<"config" | "logs">("config");
@@ -133,15 +197,36 @@ function App() {
   }, [bridgeRunning]);
 
   useEffect(() => {
-    window.electronAPI.readConfig().then((cfg: Record<string, string>) => {
-      setConfig((prev) => ({
-        ...prev,
-        ...cfg,
-        UPSTREAM_FORMAT: (cfg.UPSTREAM_FORMAT as ConfigData["UPSTREAM_FORMAT"]) || prev.UPSTREAM_FORMAT,
-        CODEX_CHAT_REASONING_MODE: cfg.CODEX_CHAT_REASONING_MODE || prev.CODEX_CHAT_REASONING_MODE,
-      }));
-      addLog("Loaded existing config", "info");
-    });
+    Promise.all([window.electronAPI.readConfig(), window.electronAPI.readUpstreamGroups()]).then(
+      ([cfg, rawGroups]) => {
+        const groups = normalizeGroups(rawGroups);
+        const format: ConfigData["UPSTREAM_FORMAT"] =
+          (cfg.UPSTREAM_FORMAT as ConfigData["UPSTREAM_FORMAT"]) || "anthropic";
+        let activeId: string | null = null;
+        const list = groups[format] || [];
+        let merged: Record<string, string> = { ...cfg };
+        if (list.length > 0) {
+          const recent = [...list].sort((a, b) => b.selectedAt - a.selectedAt)[0];
+          activeId = recent.id;
+          const keys = FORMAT_KEYS[format];
+          merged = {
+            ...merged,
+            [keys.apiKey]: recent.apiKey,
+            [keys.model]: recent.model,
+            [keys.baseUrl]: recent.baseUrl,
+          };
+        }
+        setConfig((prev) => ({
+          ...prev,
+          ...merged,
+          UPSTREAM_FORMAT: format,
+          CODEX_CHAT_REASONING_MODE: merged.CODEX_CHAT_REASONING_MODE || prev.CODEX_CHAT_REASONING_MODE,
+        }));
+        setUpstreamGroups(groups);
+        setActiveGroupId(activeId);
+        addLog("Loaded existing config", "info");
+      },
+    );
 
     window.electronAPI.getBridgeStatus().then((s: { running: boolean }) => {
       setBridgeRunning(s.running);
@@ -183,6 +268,30 @@ function App() {
   const handleSave = async (cfg: ConfigData) => {
     await window.electronAPI.writeConfig(cfg as unknown as Record<string, string>);
     addLog("Config saved", "success");
+  };
+
+  const handleGroupsChange = (next: UpstreamGroupMap) => {
+    setUpstreamGroups(next);
+    void window.electronAPI.writeUpstreamGroups(next as unknown as Record<string, unknown>);
+  };
+
+  const handleSelectGroup = (format: ConfigData["UPSTREAM_FORMAT"], group: UpstreamGroup) => {
+    setActiveGroupId(group.id);
+    const keys = FORMAT_KEYS[format];
+    setConfig((prev) => ({
+      ...prev,
+      [keys.apiKey]: group.apiKey,
+      [keys.model]: group.model,
+      [keys.baseUrl]: group.baseUrl,
+    }));
+    const next = {
+      ...upstreamGroups,
+      [format]: (upstreamGroups[format] || []).map((g) =>
+        g.id === group.id ? { ...g, selectedAt: Date.now() } : g,
+      ),
+    };
+    setUpstreamGroups(next);
+    void window.electronAPI.writeUpstreamGroups(next as unknown as Record<string, unknown>);
   };
 
   const toggleBridge = async () => {
@@ -320,7 +429,16 @@ function App() {
         <div className="content">
           {activeTab === "config" ? (
             <>
-              <ConfigCard config={config} onChange={setConfig} onSave={handleSave} />
+              <ConfigCard
+                config={config}
+                onChange={setConfig}
+                onSave={handleSave}
+                groups={upstreamGroups}
+                onGroupsChange={handleGroupsChange}
+                activeGroupId={activeGroupId}
+                onActiveGroupChange={setActiveGroupId}
+                onSelectGroup={handleSelectGroup}
+              />
             </>
           ) : (
             <LogPanel logs={logs} onClear={() => setLogs([])} scrollRef={logEndRef} />

@@ -1127,3 +1127,76 @@ input:checked + .toggle-slider::before {
     font-size: 11px;
   }
 }
+/* ─── Upstream Group Bar ───────────────────────────── */
+
+.upstream-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.upstream-group-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.group-seg {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.group-name-btn {
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-add-btn {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 10px;
+}
+
+.group-name-input-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.group-name-input {
+  min-width: 84px;
+  max-width: 170px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-hover);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.group-name-input:focus {
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+}
+
+.group-done-btn {
+  border: none;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 6px;
+  padding: 7px 12px;
+  transition: background 0.15s;
+}
+
+.group-done-btn:hover {
+  background: var(--accent-hover);
+}

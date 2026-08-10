@@ -4,6 +4,8 @@ interface Window {
   electronAPI: {
     readConfig: () => Promise<Record<string, string>>;
     writeConfig: (config: Record<string, string>) => Promise<{ ok: boolean; error?: string }>;
+    readUpstreamGroups: () => Promise<Record<string, unknown>>;
+    writeUpstreamGroups: (groups: Record<string, unknown>) => Promise<{ ok: boolean; error?: string }>;
     startBridge: () => Promise<{ ok: boolean; error?: string }>;
     stopBridge: () => Promise<{ ok: boolean; error?: string }>;
     getBridgeStatus: () => Promise<{ running: boolean }>;
