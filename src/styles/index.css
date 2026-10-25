@@ -980,6 +980,11 @@ input:checked + .toggle-slider::before {
   background: var(--accent-hover);
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ─── Log Panel ─────────────────────────────────────── */
 
 .log-panel {
@@ -1150,6 +1155,7 @@ input:checked + .toggle-slider::before {
 .group-name-input-wrap {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
 }
 
 .group-name-input {
@@ -1169,20 +1175,86 @@ input:checked + .toggle-slider::before {
   box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
 }
 
-.group-done-btn {
-  border: none;
+.group-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.group-edit-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   border-radius: 6px;
-  padding: 7px 12px;
-  transition: background 0.15s;
-  margin-left: auto;
+  padding: 5px 8px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.group-done-btn:hover {
-  background: var(--accent-hover);
+.group-edit-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.group-edit-btn.confirm {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.group-edit-btn.confirm:hover {
+  background: rgba(10, 132, 255, 0.12);
+}
+
+.group-edit-btn.cancel:hover {
+  color: var(--danger);
+}
+
+.group-delete-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.group-delete-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(255, 69, 58, 0.08);
+}
+
+.group-empty-hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.group-dirty-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
+  vertical-align: middle;
+}
+
+.save-hint {
+  align-self: center;
+  font-size: 12px;
+  color: var(--text-secondary);
 }

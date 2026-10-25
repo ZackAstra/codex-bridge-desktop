@@ -133,13 +133,17 @@ npm run build:icon
 
 每种上游格式（`anthropic` / `openai` / `response`）下可保存多组「API Key + 模型名 + Base URL」预设，互不干扰：
 
-- 在对应格式的 "Xxx Upstream" 标题下方的 "Label" 行中切换分组（`✓ 完成` 按钮固定贴最右侧），默认选中该格式最近使用的一组；
-- 点击 `+` 新增分组：分组名在按钮栏内直接编辑（默认 `新分组N`，自动递增不重名），完成后点击 `✓` 保存；
-- 双击分组名可直接重命名，同样通过 `✓` 保存；
-- 分组独立保存于应用数据目录的 `upstream-groups.json`，不影响 `.env` 与 `config.toml`；
+- 在对应格式的 "Xxx Upstream" 标题下方的 "Label" 行中切换分组：单击加载该组到表单，双击重命名；
+- 新增：点击 `+` → 输入分组名 → `✓` 或 Enter。`✓` **只保存分组名称**，并用当前表单值生成快照；`×` 或 Esc 取消；
+- 编辑已有分组：选中分组 → 修改 API Key / Model / Base URL → 点击底部 **Save Config**。Save Config 会把当前值写回该分组，并写入 `.env` / `config.toml`（唯一提交点）；
+- 删除：选中分组后点击 Label 行尾的「删除」（二次确认）。表单值会保留为「未分组」草稿，不会自动切换；
+- 若当前分组有未保存的修改，切换分组或上游格式前会弹窗确认，避免静默丢弃；
+- 分组独立保存于应用数据目录的 `upstream-groups.json`；`.env` / `config.toml` 是运行时唯一真源；
+- 启动时以 `.env` / `config.toml` 为准加载表单，并按值精确匹配高亮对应分组（不会用旧分组快照覆盖已保存配置）；
+- 未选中任何分组时，Save Config 只写运行时，不会自动创建分组；
 - `Reasoning Mode` 仍按既有规则自动映射，无需手动填写。
 
-> 提示：切换分组仅将该组的 Key / 模型 / Base URL 加载到表单，需点击 **Save Config** 才会写入 `.env` 并生效。
+> 提示：若 bridge 正在运行，Save Config 后需停止并重新启动 bridge 才会加载新配置。
 
 ## 技术栈
 

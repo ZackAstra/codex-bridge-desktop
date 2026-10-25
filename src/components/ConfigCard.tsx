@@ -1,27 +1,27 @@
 ﻿import { useState } from "react";
-import { ConfigData, UpstreamGroup, UpstreamGroupMap, FORMAT_KEYS } from "../App";
+import {
+  ConfigData,
+  UpstreamGroup,
+  UpstreamGroupMap,
+  createGroup,
+  findGroup,
+  isGroupDirty,
+  matchAppliedGroup,
+  nextGroupName,
+  removeGroup,
+  renameGroup,
+} from "../config";
 import ReasoningModeSelect from "./ReasoningModeSelect";
 
 interface Props {
   config: ConfigData;
   onChange: (c: ConfigData) => void;
-  onSave: (c: ConfigData) => void;
+  onSave: (c: ConfigData) => Promise<boolean>;
   groups: UpstreamGroupMap;
-  onGroupsChange: (next: UpstreamGroupMap) => void;
+  onGroupsChange: (next: UpstreamGroupMap) => Promise<boolean>;
   activeGroupId: string | null;
   onActiveGroupChange: (id: string | null) => void;
   onSelectGroup: (format: ConfigData["UPSTREAM_FORMAT"], group: UpstreamGroup) => void;
-}
-
-function genGroupId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function nextGroupName(list: UpstreamGroup[]): string {
-  const used = new Set(list.map((g) => g.name));
-  let n = 1;
-  while (used.has(`新分组${n}`)) n += 1;
-  return `新分组${n}`;
 }
 
 export default function ConfigCard({
@@ -38,10 +38,13 @@ export default function ConfigCard({
   const isResponse = config.UPSTREAM_FORMAT === "response";
   const format = config.UPSTREAM_FORMAT;
   const groupList = groups[format] || [];
+  const activeGroup = findGroup(groups, format, activeGroupId);
+  const dirty = isGroupDirty(config, activeGroup, format);
 
   const [editMode, setEditMode] = useState<null | "add" | "rename">(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const update = (key: keyof ConfigData, value: string) => {
     onChange({ ...config, [key]: value });
@@ -53,33 +56,31 @@ export default function ConfigCard({
     setDraftName("");
   };
 
-  const setFormat = (format: "anthropic" | "openai" | "response") => {
+  const confirmDiscard = (): boolean => {
+    if (!dirty) return true;
+    return window.confirm("当前分组有未保存的修改，切换后将丢弃。继续？");
+  };
+
+  const setFormat = (nextFormat: ConfigData["UPSTREAM_FORMAT"]) => {
+    if (nextFormat === format) return;
+    if (!confirmDiscard()) return;
     clearEdit();
-    const next: ConfigData = { ...config, UPSTREAM_FORMAT: format };
-    if (format === "openai" && !next.OPENAI_BASE_URL) {
+    const next: ConfigData = { ...config, UPSTREAM_FORMAT: nextFormat };
+    if (nextFormat === "openai" && !next.OPENAI_BASE_URL) {
       next.OPENAI_BASE_URL = "https://api.deepseek.com/v1";
     }
-    if (format === "anthropic" && !next.ANTHROPIC_BASE_URL) {
+    if (nextFormat === "anthropic" && !next.ANTHROPIC_BASE_URL) {
       next.ANTHROPIC_BASE_URL = "https://api.minimaxi.com/anthropic";
     }
-    if (format === "response" && !next.RESPONSE_BASE_URL) {
+    if (nextFormat === "response" && !next.RESPONSE_BASE_URL) {
       next.RESPONSE_BASE_URL = "https://api.openai.com/v1";
     }
-    const list = groups[format] || [];
-    if (list.length > 0) {
-      const recent = [...list].sort((a, b) => b.selectedAt - a.selectedAt)[0];
-      const keys = FORMAT_KEYS[format];
-      next[keys.apiKey] = recent.apiKey;
-      next[keys.model] = recent.model;
-      next[keys.baseUrl] = recent.baseUrl;
-      onActiveGroupChange(recent.id);
-    } else {
-      onActiveGroupChange(null);
-    }
     onChange(next);
+    onActiveGroupChange(matchAppliedGroup(groups, nextFormat, next)?.id ?? null);
   };
 
   const selectGroup = (g: UpstreamGroup) => {
+    if (!confirmDiscard()) return;
     clearEdit();
     onSelectGroup(format, g);
   };
@@ -97,93 +98,119 @@ export default function ConfigCard({
     setDraftName(g.name);
   };
 
-  const handleDone = () => {
+  const handleDone = async (): Promise<boolean> => {
     const name = draftName.trim();
     if (editMode === "add") {
-      const keys = FORMAT_KEYS[format];
-      const newGroup: UpstreamGroup = {
-        id: genGroupId(),
-        name: name || nextGroupName(groupList),
-        apiKey: config[keys.apiKey] || "",
-        model: config[keys.model] || "",
-        baseUrl: config[keys.baseUrl] || "",
-        selectedAt: Date.now(),
-      };
-      const next = { ...groups, [format]: [...groupList, newGroup] };
-      onGroupsChange(next);
-      onActiveGroupChange(newGroup.id);
+      const { groups: next, group: created } = createGroup(groups, format, name, config, Date.now());
+      if (!(await onGroupsChange(next))) return false;
+      onActiveGroupChange(created.id);
       clearEdit();
-    } else if (editMode === "rename" && editId) {
-      const target = groupList.find((g) => g.id === editId);
-      if (target) {
-        const next = {
-          ...groups,
-          [format]: groupList.map((g) => (g.id === editId ? { ...g, name: name || target.name } : g)),
-        };
-        onGroupsChange(next);
+      return true;
+    }
+    if (editMode === "rename") {
+      if (editId) {
+        const next = renameGroup(groups, format, editId, name);
+        if (next !== groups && !(await onGroupsChange(next))) return false;
       }
       clearEdit();
+      return true;
+    }
+    return true;
+  };
+
+  const handleDelete = async () => {
+    if (!activeGroup) return;
+    if (!window.confirm(`删除分组「${activeGroup.name}」？此操作不可撤销。`)) return;
+    const next = removeGroup(groups, format, activeGroup.id);
+    if (!(await onGroupsChange(next))) return;
+    onActiveGroupChange(null);
+    clearEdit();
+  };
+
+  const handleSaveClick = async () => {
+    setSaving(true);
+    try {
+      if (editMode && !(await handleDone())) return;
+      await onSave(config);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const editInput = (
-    <input
-      className="group-name-input"
-      value={draftName}
-      autoFocus
-      onChange={(e) => setDraftName(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") handleDone();
-        if (e.key === "Escape") clearEdit();
-      }}
-    />
+  const renderEditInput = (key: string) => (
+    <span key={key} className="group-name-input-wrap">
+      <input
+        className="group-name-input"
+        value={draftName}
+        autoFocus
+        aria-label="分组名称"
+        onChange={(e) => setDraftName(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void handleDone();
+          if (e.key === "Escape") clearEdit();
+        }}
+      />
+      <span className="group-edit-actions">
+        <button
+          type="button"
+          className="group-edit-btn confirm"
+          onClick={() => void handleDone()}
+          title="确认分组名（Enter）"
+        >
+          ✓
+        </button>
+        <button
+          type="button"
+          className="group-edit-btn cancel"
+          onClick={clearEdit}
+          title="取消（Esc）"
+        >
+          ×
+        </button>
+      </span>
+    </span>
   );
 
   const groupBar = (
     <>
       <div className="seg-control group-seg">
-        {groupList.length === 0 ? (
-          editMode === "add" ? (
-            <span className="group-name-input-wrap">{editInput}</span>
+        {activeGroupId === null && <span className="group-empty-hint">未分组</span>}
+        {groupList.map((g) =>
+          editMode === "rename" && editId === g.id ? (
+            renderEditInput(g.id)
           ) : (
-            <span className={`seg-btn group-name-btn ${activeGroupId === null ? "active" : ""}`}>
-              新分组1
-            </span>
-          )
-        ) : (
-          groupList.map((g) =>
-            editMode === "rename" && editId === g.id ? (
-              <span key={g.id} className="group-name-input-wrap">
-                {editInput}
-              </span>
-            ) : (
-              <button
-                key={g.id}
-                className={`seg-btn group-name-btn ${activeGroupId === g.id ? "active" : ""}`}
-                onClick={() => selectGroup(g)}
-                onDoubleClick={() => handleDoubleClick(g)}
-                title="双击重命名"
-              >
-                {g.name}
-              </button>
-            ),
-          )
+            <button
+              key={g.id}
+              type="button"
+              className={`seg-btn group-name-btn ${activeGroupId === g.id ? "active" : ""}`}
+              onClick={() => selectGroup(g)}
+              onDoubleClick={() => handleDoubleClick(g)}
+              title="单击切换，双击重命名"
+            >
+              {g.name}
+            </button>
+          ),
         )}
         <button
+          type="button"
           className={`seg-btn group-add-btn ${editMode === "add" ? "active" : ""}`}
           onClick={handleAdd}
-          title="新增分组"
+          title="以当前表单值新增分组"
         >
           +
         </button>
-        {editMode === "add" && groupList.length > 0 && (
-          <span className="group-name-input-wrap">{editInput}</span>
-        )}
+        {editMode === "add" && renderEditInput("new-group")}
       </div>
-      {(editMode === "add" || editMode === "rename") && (
-        <button className="group-done-btn" onClick={handleDone} title="完成保存">
-          ✓
+      {activeGroup && (
+        <button
+          type="button"
+          className="group-delete-btn"
+          onClick={() => void handleDelete()}
+          title="删除当前分组"
+        >
+          删除
         </button>
       )}
     </>
@@ -383,9 +410,16 @@ export default function ConfigCard({
       </div>
 
       <div className="btn-row">
-        <button className="btn btn-primary" onClick={() => onSave(config)}>
-          Save Config
+        <button
+          className="btn btn-primary"
+          onClick={() => void handleSaveClick()}
+          disabled={saving}
+          title="保存当前分组的值，并写入 .env / config.toml"
+        >
+          {saving ? "Saving..." : "Save Config"}
+          {dirty && <span className="group-dirty-dot" title="当前分组有未保存的修改" />}
         </button>
+        <span className="save-hint">保存分组值并应用到 .env / config.toml</span>
       </div>
     </div>
   );

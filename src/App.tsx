@@ -2,6 +2,17 @@
 import ConfigCard from "./components/ConfigCard";
 import LogPanel from "./components/LogPanel";
 import {
+  ConfigData,
+  EMPTY_GROUPS,
+  FORMAT_KEYS,
+  UpstreamGroup,
+  UpstreamGroupMap,
+  findGroup,
+  matchAppliedGroup,
+  normalizeGroups,
+  upsertGroupValues,
+} from "./config";
+import {
   SunIcon,
   MoonIcon,
   MonitorIcon,
@@ -10,86 +21,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "./components/Icons";
-
-export interface ConfigData {
-  ANTHROPIC_AUTH_TOKEN: string;
-  ANTHROPIC_MODEL: string;
-  ANTHROPIC_BASE_URL: string;
-  OPENAI_API_KEY: string;
-  OPENAI_BASE_URL: string;
-  OPENAI_MODEL: string;
-  RESPONSE_API_KEY: string;
-  RESPONSE_BASE_URL: string;
-  RESPONSE_MODEL: string;
-  CODEX_CHAT_REASONING_MODE: string;
-  CODEX_MODEL: string;
-  CODEX_PROVIDER: string;
-  BRIDGE_PORT: string;
-  CODEX_CONFIG_PATH: string;
-  UPSTREAM_FORMAT: "anthropic" | "openai" | "response";
-}
-
-export interface UpstreamGroup {
-  id: string;
-  name: string;
-  apiKey: string;
-  model: string;
-  baseUrl: string;
-  selectedAt: number;
-}
-
-export type UpstreamGroupMap = {
-  anthropic: UpstreamGroup[];
-  openai: UpstreamGroup[];
-  response: UpstreamGroup[];
-};
-
-export const EMPTY_GROUPS: UpstreamGroupMap = {
-  anthropic: [],
-  openai: [],
-  response: [],
-};
-
-export const FORMAT_KEYS = {
-  anthropic: {
-    apiKey: "ANTHROPIC_AUTH_TOKEN",
-    model: "ANTHROPIC_MODEL",
-    baseUrl: "ANTHROPIC_BASE_URL",
-  },
-  openai: {
-    apiKey: "OPENAI_API_KEY",
-    model: "OPENAI_MODEL",
-    baseUrl: "OPENAI_BASE_URL",
-  },
-  response: {
-    apiKey: "RESPONSE_API_KEY",
-    model: "RESPONSE_MODEL",
-    baseUrl: "RESPONSE_BASE_URL",
-  },
-} as const;
-
-function normalizeGroups(raw: Record<string, unknown>): UpstreamGroupMap {
-  const result: UpstreamGroupMap = { anthropic: [], openai: [], response: [] };
-  (["anthropic", "openai", "response"] as const).forEach((key) => {
-    const arr = raw?.[key];
-    if (Array.isArray(arr)) {
-      result[key] = arr
-        .filter(
-          (g): g is Record<string, unknown> =>
-            !!g && typeof g === "object" && typeof (g as UpstreamGroup).name === "string",
-        )
-        .map((g) => ({
-          id: String(g.id || ""),
-          name: String(g.name),
-          apiKey: String(g.apiKey || ""),
-          model: String(g.model || ""),
-          baseUrl: String(g.baseUrl || ""),
-          selectedAt: Number(g.selectedAt) || 0,
-        }));
-    }
-  });
-  return result;
-}
 
 export interface LogLine {
   text: string;
@@ -152,6 +83,13 @@ function App() {
   });
   const themeMenuRef = useRef<HTMLDivElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const groupsRef = useRef<UpstreamGroupMap>(EMPTY_GROUPS);
+  const activeGroupIdRef = useRef<string | null>(null);
+
+  const selectActiveGroup = useCallback((id: string | null) => {
+    activeGroupIdRef.current = id;
+    setActiveGroupId(id);
+  }, []);
 
   useEffect(() => {
     applyTheme(theme);
@@ -200,30 +138,19 @@ function App() {
     Promise.all([window.electronAPI.readConfig(), window.electronAPI.readUpstreamGroups()]).then(
       ([cfg, rawGroups]) => {
         const groups = normalizeGroups(rawGroups);
+        const rawFormat = cfg.UPSTREAM_FORMAT;
         const format: ConfigData["UPSTREAM_FORMAT"] =
-          (cfg.UPSTREAM_FORMAT as ConfigData["UPSTREAM_FORMAT"]) || "anthropic";
-        let activeId: string | null = null;
-        const list = groups[format] || [];
-        let merged: Record<string, string> = { ...cfg };
-        if (list.length > 0) {
-          const recent = [...list].sort((a, b) => b.selectedAt - a.selectedAt)[0];
-          activeId = recent.id;
-          const keys = FORMAT_KEYS[format];
-          merged = {
-            ...merged,
-            [keys.apiKey]: recent.apiKey,
-            [keys.model]: recent.model,
-            [keys.baseUrl]: recent.baseUrl,
-          };
-        }
+          rawFormat === "openai" || rawFormat === "response" ? rawFormat : "anthropic";
+        const applied = { ...cfg, UPSTREAM_FORMAT: format } as unknown as ConfigData;
         setConfig((prev) => ({
           ...prev,
-          ...merged,
+          ...cfg,
           UPSTREAM_FORMAT: format,
-          CODEX_CHAT_REASONING_MODE: merged.CODEX_CHAT_REASONING_MODE || prev.CODEX_CHAT_REASONING_MODE,
+          CODEX_CHAT_REASONING_MODE: cfg.CODEX_CHAT_REASONING_MODE || prev.CODEX_CHAT_REASONING_MODE,
         }));
+        groupsRef.current = groups;
         setUpstreamGroups(groups);
-        setActiveGroupId(activeId);
+        selectActiveGroup(matchAppliedGroup(groups, format, applied)?.id ?? null);
         addLog("Loaded existing config", "info");
       },
     );
@@ -265,18 +192,55 @@ function App() {
     setLogs((prev) => [...prev.slice(-200), { text, level, origin: "live" as const }]);
   }, []);
 
-  const handleSave = async (cfg: ConfigData) => {
-    await window.electronAPI.writeConfig(cfg as unknown as Record<string, string>);
-    addLog("Config saved", "success");
-  };
+  const persistGroups = useCallback(
+    async (next: UpstreamGroupMap): Promise<boolean> => {
+      const prev = groupsRef.current;
+      groupsRef.current = next;
+      setUpstreamGroups(next);
+      const result = await window.electronAPI.writeUpstreamGroups(
+        next as unknown as Record<string, unknown>,
+      );
+      if (!result.ok) {
+        if (groupsRef.current === next) {
+          groupsRef.current = prev;
+          setUpstreamGroups(prev);
+        }
+        addLog(`Save groups failed: ${result.error}`, "error");
+        return false;
+      }
+      return true;
+    },
+    [addLog],
+  );
 
-  const handleGroupsChange = (next: UpstreamGroupMap) => {
-    setUpstreamGroups(next);
-    void window.electronAPI.writeUpstreamGroups(next as unknown as Record<string, unknown>);
-  };
+  const commitConfig = useCallback(
+    async (cfg: ConfigData): Promise<boolean> => {
+      const format = cfg.UPSTREAM_FORMAT;
+      const group = findGroup(groupsRef.current, format, activeGroupIdRef.current);
+      const result = await window.electronAPI.writeConfig(
+        cfg as unknown as Record<string, string>,
+      );
+      if (!result.ok) {
+        addLog(`Save failed: ${result.error}`, "error");
+        return false;
+      }
+      if (group) {
+        const next = upsertGroupValues(groupsRef.current, format, group.id, cfg, Date.now());
+        if (!(await persistGroups(next))) {
+          addLog("Config applied, but saving the group failed", "warn");
+        }
+      }
+      if (bridgeRunning) {
+        addLog("Bridge is running with the previous config; restart it to apply", "warn");
+      }
+      addLog(group ? `Config saved (group: ${group.name})` : "Config saved (no group)", "success");
+      return true;
+    },
+    [addLog, bridgeRunning, persistGroups],
+  );
 
   const handleSelectGroup = (format: ConfigData["UPSTREAM_FORMAT"], group: UpstreamGroup) => {
-    setActiveGroupId(group.id);
+    selectActiveGroup(group.id);
     const keys = FORMAT_KEYS[format];
     setConfig((prev) => ({
       ...prev,
@@ -284,27 +248,19 @@ function App() {
       [keys.model]: group.model,
       [keys.baseUrl]: group.baseUrl,
     }));
-    const next = {
-      ...upstreamGroups,
-      [format]: (upstreamGroups[format] || []).map((g) =>
-        g.id === group.id ? { ...g, selectedAt: Date.now() } : g,
-      ),
-    };
-    setUpstreamGroups(next);
-    void window.electronAPI.writeUpstreamGroups(next as unknown as Record<string, unknown>);
   };
 
   const toggleBridge = async () => {
     if (bridgeRunning) {
       await window.electronAPI.stopBridge();
     } else {
-      await window.electronAPI.writeConfig(config as unknown as Record<string, string>);
+      if (!(await commitConfig(config))) return;
       await window.electronAPI.startBridge();
     }
   };
 
   const handleLaunchCodex = async () => {
-    await window.electronAPI.writeConfig(config as unknown as Record<string, string>);
+    if (!(await commitConfig(config))) return;
     const result = await window.electronAPI.launchCodex();
     if (result.ok) {
       addLog("Launched Codex", "success");
@@ -432,11 +388,11 @@ function App() {
               <ConfigCard
                 config={config}
                 onChange={setConfig}
-                onSave={handleSave}
+                onSave={commitConfig}
                 groups={upstreamGroups}
-                onGroupsChange={handleGroupsChange}
+                onGroupsChange={persistGroups}
                 activeGroupId={activeGroupId}
-                onActiveGroupChange={setActiveGroupId}
+                onActiveGroupChange={selectActiveGroup}
                 onSelectGroup={handleSelectGroup}
               />
             </>
