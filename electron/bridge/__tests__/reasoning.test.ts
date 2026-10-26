@@ -39,8 +39,7 @@ describe("reasoning", () => {
     expect(cfg!.effortValueMode).toBe("deepseek");
   });
 
-  it("apply deepseek xhigh to max", () => {
-    const result: Record<string, unknown> = {};
+  it("apply deepseek xhigh to high and ultra to max", () => {
     const config: CodexChatReasoningConfig = {
       supportsThinking: true,
       supportsEffort: true,
@@ -48,18 +47,67 @@ describe("reasoning", () => {
       effortParam: "reasoning_effort",
       effortValueMode: "deepseek",
     };
-    applyReasoningOptions(result, { reasoning: { effort: "xhigh" } }, "deepseek-v4", config);
-    expect(result.thinking).toEqual({ type: "enabled" });
-    expect(result.reasoning_effort).toBe("max");
+    const xhigh: Record<string, unknown> = {};
+    applyReasoningOptions(xhigh, { reasoning: { effort: "xhigh" } }, "deepseek-v4", config);
+    expect(xhigh.thinking).toEqual({ type: "enabled" });
+    expect(xhigh.reasoning_effort).toBe("high");
+
+    const ultra: Record<string, unknown> = {};
+    applyReasoningOptions(ultra, { reasoning: { effort: "ultra" } }, "deepseek-v4", config);
+    expect(ultra.reasoning_effort).toBe("max");
   });
 
-  it("mapReasoningEffort deepseek_responses keeps low and caps at max", () => {
-    expect(mapReasoningEffort("minimal", "deepseek_responses")).toBe("low");
-    expect(mapReasoningEffort("low", "deepseek_responses")).toBe("low");
-    expect(mapReasoningEffort("medium", "deepseek_responses")).toBe("high");
-    expect(mapReasoningEffort("high", "deepseek_responses")).toBe("high");
-    expect(mapReasoningEffort("xhigh", "deepseek_responses")).toBe("max");
-    expect(mapReasoningEffort("max", "deepseek_responses")).toBe("max");
+  it("mapReasoningEffort deepseek_responses follows the official table", () => {
+    const expected: Record<string, string> = {
+      minimal: "low",
+      low: "low",
+      medium: "high",
+      high: "high",
+      xhigh: "high",
+      max: "max",
+      ultra: "max",
+    };
+    for (const [input, output] of Object.entries(expected)) {
+      expect(mapReasoningEffort(input, "deepseek_responses")).toBe(output);
+    }
+    expect(mapReasoningEffort("none", "deepseek_responses")).toBeNull();
+  });
+
+  it("does not infer deepseek for reseller hosts", () => {
+    expect(
+      inferCodexChatReasoningConfig(
+        "https://ark.cn-beijing.volces.com/api/v3",
+        "deepseek-v4-flash",
+      ),
+    ).toBeNull();
+  });
+
+  it("manual deepseek mode works without inference", () => {
+    const cfg = resolveCodexChatReasoningConfig(
+      "https://ark.cn-beijing.volces.com/api/v3",
+      "deepseek-v4-flash",
+      "deepseek",
+    );
+    expect(cfg).not.toBeNull();
+    expect(cfg!.supportsThinking).toBe(true);
+    expect(cfg!.thinkingParam).toBe("thinking");
+    expect(cfg!.effortParam).toBe("reasoning_effort");
+  });
+
+  it("writes output_config.effort for native anthropic deepseek", () => {
+    const cfg = inferCodexChatReasoningConfig(
+      "https://api.deepseek.com/anthropic",
+      "deepseek-flash",
+    );
+    const params: Record<string, unknown> = {};
+    applyAnthropicReasoningOptions(
+      params,
+      { reasoning: { effort: "xhigh" } },
+      "deepseek-flash",
+      cfg,
+    );
+    expect((params.thinking as Record<string, unknown>).type).toBe("enabled");
+    expect(params.output_config).toEqual({ effort: "high" });
   });
 
   it("apply anthropic thinking enabled", () => {

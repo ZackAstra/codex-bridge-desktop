@@ -4,6 +4,8 @@ import fs from "fs";
 import { spawn, exec } from "child_process";
 import os from "os";
 import { BridgeServer } from "./bridge/server";
+import { writeCodexConfig } from "./codex/configStore";
+import { isNativeDeepseekUrl } from "./codex/nativeDeepseek";
 
 const LEGACY_ENV_PATH = path.resolve(__dirname, "../..", "codex-bridge", ".env");
 const DEFAULT_CODEX_DIR = path.join(os.homedir(), ".codex");
@@ -445,6 +447,10 @@ function writeEnv(data: Record<string, string>) {
     `RESPONSE_MODEL=${data.RESPONSE_MODEL || ""}`,
     `RESPONSE_BASE_URL=${data.RESPONSE_BASE_URL || ""}`,
     "",
+    `# Native DeepSeek Responses upstream`,
+    `NATIVE_DEEPSEEK_VIA_BRIDGE=${data.NATIVE_DEEPSEEK_VIA_BRIDGE === "true" ? "true" : "false"}`,
+    `NATIVE_DEEPSEEK_WEB_SEARCH=${data.NATIVE_DEEPSEEK_WEB_SEARCH === "live" ? "live" : ""}`,
+    "",
     `# Reasoning mode (OpenAI + Anthropic upstream): passthrough | deepseek | openrouter | low_high | auto`,
     `CODEX_CHAT_REASONING_MODE=${reasoningMode}`,
     "",
@@ -453,6 +459,28 @@ function writeEnv(data: Record<string, string>) {
   ];
   fs.mkdirSync(path.dirname(getEnvPath()), { recursive: true });
   fs.writeFileSync(getEnvPath(), lines.join("\n"), "utf-8");
+}
+
+function readEffectiveCodexHome(): string {
+  return process.env.CODEX_HOME || DEFAULT_CODEX_DIR;
+}
+
+function isNativeDeepseekDirectActive(env: Record<string, string>, tomlText: string): boolean {
+  if (env.UPSTREAM_FORMAT !== "response") return false;
+  if (env.NATIVE_DEEPSEEK_VIA_BRIDGE === "true") return false;
+  if (!isNativeDeepseekUrl(env.RESPONSE_BASE_URL || "", "responses")) return false;
+  const top = parseTomlSection(tomlText, "");
+  return top.model_provider === "deepseek";
+}
+
+function logNativeDirectRestartHint(): void {
+  const env = parseEnv();
+  const codexDir = env.CODEX_CONFIG_PATH || DEFAULT_CODEX_DIR;
+  const tomlPath = path.join(codexDir, "config.toml");
+  const tomlText = fs.existsSync(tomlPath) ? fs.readFileSync(tomlPath, "utf-8") : "";
+  if (isNativeDeepseekDirectActive(env, tomlText)) {
+    sendLog("Codex 需要完全退出后重新打开才能加载 DeepSeek 直连配置（托盘退出）", "warn");
+  }
 }
 
 function parseTomlSection(text: string, section: string): Record<string, unknown> {
@@ -480,61 +508,6 @@ function parseTomlSection(text: string, section: string): Record<string, unknown
   return result;
 }
 
-function writeTomlValue(text: string, section: string, key: string, value: unknown): string {
-  const vs = typeof value === "boolean" ? String(value).toLowerCase()
-    : typeof value === "string" && !value.startsWith("'") ? `"${value}"`
-    : String(value);
-
-  let lines = text.split(/\r?\n/);
-  if (section === "") {
-    let found = false;
-    for (let i = 0; i < lines.length; i++) {
-      if (new RegExp(`^${key}\\s*=`).test(lines[i].trim())) {
-        lines[i] = `${key} = ${vs}`;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      if (lines.length && lines[lines.length - 1].trim()) lines.push("");
-      lines.push(`${key} = ${vs}`);
-    }
-    return lines.join("\n");
-  }
-
-  const secHdr = `[${section}]`;
-  let inSec = false;
-  let found = false;
-  let secIdx = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const s = lines[i].trim();
-    if (s.startsWith("[") && !s.startsWith("[[")) {
-      if (inSec) break;
-      if (s === secHdr) { inSec = true; secIdx = i; }
-      continue;
-    }
-    if (inSec && new RegExp(`^${key}\\s*=`).test(s)) {
-      lines[i] = `${key} = ${vs}`;
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
-    if (secIdx >= 0) {
-      let ins = secIdx + 1;
-      while (ins < lines.length && !lines[ins].trim().startsWith("[") && lines[ins].trim()) ins++;
-      lines.splice(ins, 0, `${key} = ${vs}`);
-    } else {
-      if (lines.length && lines[lines.length - 1].trim()) lines.push("");
-      lines.push(secHdr);
-      lines.push(`${key} = ${vs}`);
-    }
-  }
-  return lines.join("\n");
-}
-
 ipcMain.handle("read-config", async () => {
   const env = parseEnv();
   const codexDir = env.CODEX_CONFIG_PATH || DEFAULT_CODEX_DIR;
@@ -544,8 +517,11 @@ ipcMain.handle("read-config", async () => {
     tomlText = fs.readFileSync(tomlPath, "utf-8");
   }
   const top = parseTomlSection(tomlText, "");
+  const activeProviderName = (top.model_provider as string) || "bridge";
+  const activeProvider = parseTomlSection(tomlText, `model_providers.${activeProviderName}`);
   const bridge = parseTomlSection(tomlText, "model_providers.bridge");
-  const port = typeof bridge.base_url === "string" ? (bridge.base_url.match(/:(\d+)$/)?.[1] || "8000") : "8000";
+  const portSource = Object.keys(activeProvider).length ? activeProvider : bridge;
+  const port = typeof portSource.base_url === "string" ? (portSource.base_url.match(/:(\d+)$/)?.[1] || "8000") : "8000";
 
   const upstreamFormat = env.UPSTREAM_FORMAT || "anthropic";
   return {
@@ -558,6 +534,8 @@ ipcMain.handle("read-config", async () => {
     RESPONSE_API_KEY: env.RESPONSE_API_KEY || "",
     RESPONSE_BASE_URL: env.RESPONSE_BASE_URL || "",
     RESPONSE_MODEL: env.RESPONSE_MODEL || "",
+    NATIVE_DEEPSEEK_VIA_BRIDGE: env.NATIVE_DEEPSEEK_VIA_BRIDGE === "true" ? "true" : "false",
+    NATIVE_DEEPSEEK_WEB_SEARCH: env.NATIVE_DEEPSEEK_WEB_SEARCH === "live" ? "live" : "",
     CODEX_CHAT_REASONING_MODE: env.CODEX_CHAT_REASONING_MODE || "auto",
     CODEX_MODEL: (top.model as string) || (upstreamFormat === "openai" ? (env.OPENAI_MODEL || "") : upstreamFormat === "response" ? (env.RESPONSE_MODEL || "") : (env.ANTHROPIC_MODEL || "")),
     CODEX_PROVIDER: (top.model_provider as string) || "bridge",
@@ -567,43 +545,53 @@ ipcMain.handle("read-config", async () => {
   };
 });
 
-ipcMain.handle("write-config", async (_event, payload: Record<string, string>) => {
-  try {
-    const codexDir = payload.CODEX_CONFIG_PATH || DEFAULT_CODEX_DIR;
-    if (!fs.existsSync(codexDir)) {
-      const msg = `Codex config path does not exist: ${codexDir}`;
-      sendLog(msg, "error");
-      return { ok: false, error: msg };
+ipcMain.handle(
+  "write-config",
+  async (
+    _event,
+    payload: Record<string, string>,
+    options?: { confirmRemoveConflicts?: boolean },
+  ) => {
+    const result = await writeCodexConfig({
+      payload,
+      options,
+      userDataDir: app.getPath("userData"),
+      defaultCodexDir: DEFAULT_CODEX_DIR,
+      effectiveCodexHome: readEffectiveCodexHome(),
+      writeEnv,
+      log: sendLog,
+    });
+
+    if (result.ok) {
+      sendLog("Saved .env", "success");
+      const parts = [`mode=${result.mode}`, `model=${result.model}`, `provider=${result.provider}`];
+      if (result.catalogPath) parts.push(`catalog=${result.catalogPath}`);
+      sendLog(`Saved config.toml (${parts.join(", ")})`, "success");
+      if (result.backups?.config) {
+        sendLog(
+          `Backup config.toml: ${result.backups.config.path} sha256=${result.backups.config.sha256}`,
+          "info",
+        );
+      }
+      if (result.backups?.catalog) {
+        sendLog(
+          `Backup models.json: ${result.backups.catalog.path} sha256=${result.backups.catalog.sha256}`,
+          "info",
+        );
+      }
+      for (const warning of result.warnings || []) sendLog(`[Codex] ${warning}`, "warn");
+      if (result.restartRequired) {
+        sendLog("请完全退出 Codex（托盘退出）后重新打开，配置才会生效", "warn");
+      }
+    } else if (result.code === "conflicts") {
+      sendLog("DeepSeek 直连检测到冲突配置，等待确认", "warn");
+    } else {
+      sendLog(`Save error: ${result.error || "unknown"}`, "error");
     }
 
-    writeEnv(payload);
-    sendLog("Saved .env", "success");
-
-    const activeModel = payload.UPSTREAM_FORMAT === "openai" ? payload.OPENAI_MODEL : payload.UPSTREAM_FORMAT === "response" ? payload.RESPONSE_MODEL : payload.ANTHROPIC_MODEL;
-    const model = payload.CODEX_MODEL || activeModel || "";
-    const provider = payload.CODEX_PROVIDER || "bridge";
-    const port = payload.BRIDGE_PORT || "8000";
-    const tomlPath = path.join(codexDir, "config.toml");
-
-    fs.mkdirSync(codexDir, { recursive: true });
-    let tomlText = fs.existsSync(tomlPath) ? fs.readFileSync(tomlPath, "utf-8") : "";
-    tomlText = writeTomlValue(tomlText, "", "model", model);
-    tomlText = writeTomlValue(tomlText, "", "model_provider", provider);
-    const sec = `model_providers.${provider}`;
-    tomlText = writeTomlValue(tomlText, sec, "name", model ? `Local Bridge (${model})` : "Local Bridge");
-    tomlText = writeTomlValue(tomlText, sec, "base_url", `http://127.0.0.1:${port}`);
-    tomlText = writeTomlValue(tomlText, sec, "wire_api", "responses");
-    tomlText = writeTomlValue(tomlText, sec, "requires_openai_auth", false);
-    tomlText = writeTomlValue(tomlText, sec, "stream_idle_timeout_ms", parseInt(port) || 300000);
-    fs.writeFileSync(tomlPath, tomlText + "\n", "utf-8");
-    sendLog(`Saved config.toml (model=${model}, provider=${provider}, path=${tomlPath})`, "success");
-    return { ok: true };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    sendLog(`Save error: ${msg}`, "error");
-    return { ok: false, error: msg };
-  }
-});
+    return result;
+  },
+);
 
 // ─── Upstream groups IPC ─────────────────────────────
 
@@ -630,6 +618,16 @@ ipcMain.handle("start-bridge", async () => {
   }
 
   const envFromFile = parseEnv();
+  const codexDir = envFromFile.CODEX_CONFIG_PATH || DEFAULT_CODEX_DIR;
+  const tomlPath = path.join(codexDir, "config.toml");
+  const tomlText = fs.existsSync(tomlPath) ? fs.readFileSync(tomlPath, "utf-8") : "";
+  if (isNativeDeepseekDirectActive(envFromFile, tomlText)) {
+    const message =
+      "Native DeepSeek 官方直连模式不经过 Bridge；如确需转发，请在配置页勾选“经 Bridge 转发”";
+    sendLog(message, "warn");
+    return { ok: false, code: "direct_mode", error: message };
+  }
+
   const port = parseInt(envFromFile.BRIDGE_PORT || "8000", 10);
   const upstream = envFromFile.UPSTREAM_FORMAT || "anthropic";
 
@@ -732,6 +730,7 @@ ipcMain.handle("launch-codex", async () => {
       detached: true,
     });
     sendLog("Launched Codex", "success");
+    logNativeDirectRestartHint();
     scheduleCodexStartupChecks();
     checkCodexRunning();
     return { ok: true };
@@ -744,6 +743,7 @@ ipcMain.handle("launch-codex", async () => {
         detached: true,
       });
       sendLog("Launched Codex (fallback)", "success");
+      logNativeDirectRestartHint();
       scheduleCodexStartupChecks();
       checkCodexRunning();
       return { ok: true };

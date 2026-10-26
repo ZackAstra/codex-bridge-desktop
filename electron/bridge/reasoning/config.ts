@@ -1,3 +1,5 @@
+import { isNativeDeepseekUrl } from "../../codex/nativeDeepseek";
+
 export const MANUAL_EFFORT_MODES = new Set(["passthrough", "deepseek", "openrouter", "low_high"]);
 
 export interface CodexChatReasoningConfig {
@@ -58,12 +60,13 @@ export function inferCodexChatReasoningConfig(
 
   const haystack = `${name} ${url} ${modelLower}`;
 
-  if (haystack.includes("deepseek")) {
+  if (isNativeDeepseekUrl(baseUrl, "anthropic") || isNativeDeepseekUrl(baseUrl, "chat")) {
+    const anthropic = isNativeDeepseekUrl(baseUrl, "anthropic");
     return normalizeConfig({
       supportsThinking: true,
       supportsEffort: true,
       thinkingParam: "thinking",
-      effortParam: "reasoning_effort",
+      effortParam: anthropic ? "output_config.effort" : "reasoning_effort",
       effortValueMode: "deepseek",
     });
   }
@@ -132,6 +135,45 @@ export function inferCodexChatReasoningConfig(
   return null;
 }
 
+function manualConfigForMode(mode: string, baseUrl: string): CodexChatReasoningConfig {
+  const anthropic =
+    isNativeDeepseekUrl(baseUrl, "anthropic") || baseUrl.toLowerCase().includes("/anthropic");
+  if (mode === "deepseek") {
+    return {
+      supportsThinking: true,
+      supportsEffort: true,
+      thinkingParam: "thinking",
+      effortParam: anthropic ? "output_config.effort" : "reasoning_effort",
+      effortValueMode: "deepseek",
+    };
+  }
+  if (mode === "openrouter") {
+    return {
+      supportsThinking: false,
+      supportsEffort: true,
+      thinkingParam: "none",
+      effortParam: "reasoning.effort",
+      effortValueMode: "openrouter",
+    };
+  }
+  if (mode === "low_high") {
+    return {
+      supportsThinking: true,
+      supportsEffort: true,
+      thinkingParam: "thinking",
+      effortParam: anthropic ? "output_config.effort" : "reasoning_effort",
+      effortValueMode: "low_high",
+    };
+  }
+  return {
+    supportsThinking: false,
+    supportsEffort: true,
+    thinkingParam: "none",
+    effortParam: "reasoning_effort",
+    effortValueMode: "passthrough",
+  };
+}
+
 export function resolveCodexChatReasoningConfig(
   baseUrl: string,
   model: string,
@@ -144,14 +186,8 @@ export function resolveCodexChatReasoningConfig(
   if (mode === "auto") return inferred;
 
   if (MANUAL_EFFORT_MODES.has(mode)) {
-    const base = inferred || {
-      supportsThinking: false,
-      supportsEffort: false,
-      thinkingParam: "none",
-      effortParam: "none",
-      effortValueMode: "passthrough",
-    };
-    return normalizeConfig({ ...base, effortValueMode: mode });
+    const base = inferred || manualConfigForMode(mode, baseUrl);
+    return { ...base, effortValueMode: mode };
   }
 
   return inferred;

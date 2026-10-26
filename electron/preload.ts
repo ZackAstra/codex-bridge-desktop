@@ -2,8 +2,8 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   readConfig: () => ipcRenderer.invoke("read-config"),
-  writeConfig: (config: Record<string, string>) =>
-    ipcRenderer.invoke("write-config", config),
+  writeConfig: (config: Record<string, string>, options?: { confirmRemoveConflicts?: boolean }) =>
+    ipcRenderer.invoke("write-config", config, options),
 
   readUpstreamGroups: () => ipcRenderer.invoke("read-upstream-groups"),
   writeUpstreamGroups: (groups: Record<string, unknown>) =>

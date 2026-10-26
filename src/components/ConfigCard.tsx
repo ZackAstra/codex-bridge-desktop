@@ -1,11 +1,14 @@
 ﻿import { useState } from "react";
 import {
   ConfigData,
+  DEEPSEEK_WEB_SEARCH_MODEL,
   UpstreamGroup,
   UpstreamGroupMap,
+  canonicalDeepseekModel,
   createGroup,
   findGroup,
   isGroupDirty,
+  isNativeDeepseekUrl,
   matchAppliedGroup,
   nextGroupName,
   removeGroup,
@@ -40,6 +43,23 @@ export default function ConfigCard({
   const groupList = groups[format] || [];
   const activeGroup = findGroup(groups, format, activeGroupId);
   const dirty = isGroupDirty(config, activeGroup, format);
+  const nativeResponse = isResponse && isNativeDeepseekUrl(config.RESPONSE_BASE_URL, "responses");
+  const nativeOpenAI = isOpenAI && isNativeDeepseekUrl(config.OPENAI_BASE_URL, "chat");
+  const nativeAnthropic =
+    !isOpenAI && !isResponse && isNativeDeepseekUrl(config.ANTHROPIC_BASE_URL, "anthropic");
+  const directMode = nativeResponse && config.NATIVE_DEEPSEEK_VIA_BRIDGE !== "true";
+  const canonicalResponseModel = canonicalDeepseekModel(config.RESPONSE_MODEL);
+  const showWebSearch = directMode && canonicalResponseModel === DEEPSEEK_WEB_SEARCH_MODEL;
+  const activeModel = isResponse
+    ? config.RESPONSE_MODEL
+    : isOpenAI
+      ? config.OPENAI_MODEL
+      : config.ANTHROPIC_MODEL;
+  const nonNativeDeepseek =
+    !nativeResponse &&
+    !nativeOpenAI &&
+    !nativeAnthropic &&
+    activeModel.toLowerCase().includes("deepseek");
 
   const [editMode, setEditMode] = useState<null | "add" | "rename">(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -306,7 +326,7 @@ export default function ConfigCard({
             <label>Model Name</label>
             <input
               type="text"
-              placeholder="deepseek-v4-flash"
+              placeholder="deepseek-flash"
               value={config.OPENAI_MODEL}
               onChange={(e) => update("OPENAI_MODEL", e.target.value)}
             />
@@ -346,7 +366,7 @@ export default function ConfigCard({
             <label>Model Name</label>
             <input
               type="text"
-              placeholder="gpt-5"
+              placeholder="deepseek-flash"
               value={config.RESPONSE_MODEL}
               onChange={(e) => update("RESPONSE_MODEL", e.target.value)}
             />
@@ -355,7 +375,7 @@ export default function ConfigCard({
             <label>Responses Base URL</label>
             <input
               type="text"
-              placeholder="https://api.openai.com/v1"
+              placeholder="https://api.deepseek.com/"
               value={config.RESPONSE_BASE_URL}
               onChange={(e) => update("RESPONSE_BASE_URL", e.target.value)}
             />
@@ -363,11 +383,79 @@ export default function ConfigCard({
         </>
       )}
 
-      <ReasoningModeSelect
-        value={config.CODEX_CHAT_REASONING_MODE || "auto"}
-        onChange={(v) => update("CODEX_CHAT_REASONING_MODE", v)}
-        upstreamFormat={config.UPSTREAM_FORMAT === "response" ? "openai" : config.UPSTREAM_FORMAT}
-      />
+      {nativeResponse && (
+        <div className="native-deepseek-hint">
+          <div className="native-deepseek-hint-title">
+            {directMode ? "原生 DeepSeek · 官方直连" : "原生 DeepSeek · 经 Bridge"}
+          </div>
+          <div className="native-deepseek-hint-body">
+            {directMode
+              ? "Codex 将直连 https://api.deepseek.com/，读取 models.json，并锁定 deepseek-flash / deepseek-v4-pro。"
+              : "Codex 仍连接本地 Bridge，由 Bridge 转发到 DeepSeek Responses API。"}
+          </div>
+          <label className="native-deepseek-check">
+            <input
+              type="checkbox"
+              checked={config.NATIVE_DEEPSEEK_VIA_BRIDGE === "true"}
+              onChange={(e) =>
+                update("NATIVE_DEEPSEEK_VIA_BRIDGE", e.target.checked ? "true" : "false")
+              }
+            />
+            经 Bridge 转发（保留日志）
+          </label>
+          {showWebSearch && (
+            <label className="native-deepseek-check">
+              <input
+                type="checkbox"
+                checked={config.NATIVE_DEEPSEEK_WEB_SEARCH === "live"}
+                onChange={(e) =>
+                  update("NATIVE_DEEPSEEK_WEB_SEARCH", e.target.checked ? "live" : "")
+                }
+              />
+              启用联网搜索（仅 deepseek-v4-pro，按次计费）
+            </label>
+          )}
+        </div>
+      )}
+
+      {nativeOpenAI && (
+        <div className="native-deepseek-hint">
+          <div className="native-deepseek-hint-title">原生 DeepSeek · 协议转换</div>
+          <div className="native-deepseek-hint-body">
+            Codex 只支持 Responses API，Chat 上游仍需经 Bridge 转换；推理强度按官方
+            low/high/max 三档映射。
+          </div>
+        </div>
+      )}
+
+      {nativeAnthropic && (
+        <div className="native-deepseek-hint">
+          <div className="native-deepseek-hint-title">原生 DeepSeek · 协议转换</div>
+          <div className="native-deepseek-hint-body">
+            Codex 只支持 Responses API，Anthropic 上游仍需经 Bridge 转换；强度写入
+            output_config.effort。
+          </div>
+        </div>
+      )}
+
+      {nonNativeDeepseek && (
+        <div className="native-deepseek-hint">
+          <div className="native-deepseek-hint-title">非原生 DeepSeek 域名</div>
+          <div className="native-deepseek-hint-body">
+            {isResponse
+              ? "当前为 Responses 上游，effort 会原样透传；自动模式不会套用 DeepSeek 官方规则。若中转站只支持低/高/最高，请在该上游侧选择对应档位，或改用 Chat/Anthropic 格式。"
+              : "自动推理模式不会套用 DeepSeek 官方规则；如需注入 thinking/effort，可在下方 Reasoning Mode 手动选择 DeepSeek。"}
+          </div>
+        </div>
+      )}
+
+      {!isResponse && (
+        <ReasoningModeSelect
+          value={config.CODEX_CHAT_REASONING_MODE || "auto"}
+          onChange={(v) => update("CODEX_CHAT_REASONING_MODE", v)}
+          upstreamFormat={config.UPSTREAM_FORMAT === "anthropic" ? "anthropic" : "openai"}
+        />
+      )}
 
       <div className="card-title" style={{ marginTop: 12 }}>
         Codex Integration
@@ -377,7 +465,9 @@ export default function ConfigCard({
         <input
           type="text"
           placeholder="match model name above"
-          value={config.CODEX_MODEL}
+          value={directMode ? canonicalResponseModel || config.RESPONSE_MODEL : config.CODEX_MODEL}
+          disabled={directMode}
+          title={directMode ? "官方直连模式使用上游模型" : undefined}
           onChange={(e) => update("CODEX_MODEL", e.target.value)}
         />
       </div>
@@ -386,7 +476,9 @@ export default function ConfigCard({
         <input
           type="text"
           placeholder="bridge"
-          value={config.CODEX_PROVIDER}
+          value={directMode ? "deepseek" : config.CODEX_PROVIDER}
+          disabled={directMode}
+          title={directMode ? "官方直连模式固定使用 deepseek provider" : undefined}
           onChange={(e) => update("CODEX_PROVIDER", e.target.value)}
         />
       </div>
@@ -396,6 +488,8 @@ export default function ConfigCard({
           type="text"
           placeholder="8000"
           value={config.BRIDGE_PORT}
+          disabled={directMode}
+          title={directMode ? "官方直连模式不使用 Bridge" : undefined}
           onChange={(e) => update("BRIDGE_PORT", e.target.value)}
         />
       </div>

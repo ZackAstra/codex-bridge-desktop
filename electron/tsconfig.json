@@ -12,5 +12,5 @@
     "resolveJsonModule": true
   },
   "include": ["**/*.ts"],
-  "exclude": ["bridge/__tests__/**"]
+  "exclude": ["bridge/__tests__/**", "codex/__tests__/**"]
 }

@@ -220,16 +220,18 @@ export function responseFunctionCallItem(
   return item;
 }
 
+function mapDeepseekEffort(effort: string): string {
+  if (effort === "minimal" || effort === "low") return "low";
+  if (effort === "max" || effort === "ultra") return "max";
+  return "high";
+}
+
 export function mapReasoningEffort(effort: string, mode = "passthrough"): string | null {
   const e = effort.trim().toLowerCase();
   if (["none", "off", "disabled"].includes(e)) return null;
 
-  if (mode === "deepseek") {
-    return e === "max" || e === "xhigh" ? "max" : "high";
-  }
-  if (mode === "deepseek_responses") {
-    if (e === "minimal" || e === "low") return "low";
-    return e === "max" || e === "xhigh" ? "max" : "high";
+  if (mode === "deepseek" || mode === "deepseek_responses") {
+    return mapDeepseekEffort(e);
   }
   if (mode === "low_high") {
     return e === "minimal" || e === "low" ? "low" : "high";
@@ -373,6 +375,12 @@ export function applyAnthropicReasoningOptions(
     }
     const budget = typeof effort === "string" ? effortToThinkingBudget(effort, effortMode) : 12288;
     params.thinking = { type: "enabled", budget_tokens: budget };
+    if (effortMode === "deepseek" || effortMode === "deepseek_responses") {
+      if (typeof effort === "string") {
+        const mapped = mapReasoningEffort(effort, effortMode);
+        if (mapped) params.output_config = { effort: mapped };
+      }
+    }
   }
 }
 

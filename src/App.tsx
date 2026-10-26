@@ -8,6 +8,7 @@ import {
   UpstreamGroup,
   UpstreamGroupMap,
   findGroup,
+  isNativeDeepseekUrl,
   matchAppliedGroup,
   normalizeGroups,
   upsertGroupValues,
@@ -60,6 +61,8 @@ function App() {
     RESPONSE_API_KEY: "",
     RESPONSE_BASE_URL: "",
     RESPONSE_MODEL: "",
+    NATIVE_DEEPSEEK_VIA_BRIDGE: "false",
+    NATIVE_DEEPSEEK_WEB_SEARCH: "",
     CODEX_CHAT_REASONING_MODE: "auto",
     CODEX_MODEL: "",
     CODEX_PROVIDER: "bridge",
@@ -214,24 +217,46 @@ function App() {
   );
 
   const commitConfig = useCallback(
-    async (cfg: ConfigData): Promise<boolean> => {
+    async (cfg: ConfigData, options?: WriteConfigOptions): Promise<boolean> => {
       const format = cfg.UPSTREAM_FORMAT;
       const group = findGroup(groupsRef.current, format, activeGroupIdRef.current);
-      const result = await window.electronAPI.writeConfig(
-        cfg as unknown as Record<string, string>,
-      );
-      if (!result.ok) {
-        addLog(`Save failed: ${result.error}`, "error");
+      const write = (opts?: WriteConfigOptions) =>
+        window.electronAPI.writeConfig(cfg as unknown as Record<string, string>, opts);
+
+      let result: WriteConfigResult;
+      try {
+        result = await write(options);
+        if (!result.ok && result.code === "conflicts" && !options?.confirmRemoveConflicts) {
+          const lines = (result.conflicts || [])
+            .map((item) => `- ${item.key}: ${item.reason}`)
+            .join("\n");
+          const confirmed = window.confirm(
+            `检测到会覆盖 DeepSeek 官方配置的键：\n\n${lines}\n\n确认移除并继续？`,
+          );
+          if (!confirmed) {
+            addLog("Save cancelled: conflicts were not confirmed", "warn");
+            return false;
+          }
+          result = await write({ confirmRemoveConflicts: true });
+        }
+      } catch (error) {
+        addLog(`Save failed: ${error instanceof Error ? error.message : String(error)}`, "error");
         return false;
+      }
+
+      if (!result.ok) return false;
+
+      if (result.mode === "native-deepseek" && bridgeRunning) {
+        addLog("Bridge 正在运行，但官方直连模式不会使用它；可手动停止", "warn");
+      }
+      if (result.mode === "bridge" && bridgeRunning) {
+        addLog("Bridge is running with the previous config; restart it to apply", "warn");
       }
       if (group) {
         const next = upsertGroupValues(groupsRef.current, format, group.id, cfg, Date.now());
         if (!(await persistGroups(next))) {
           addLog("Config applied, but saving the group failed", "warn");
         }
-      }
-      if (bridgeRunning) {
-        addLog("Bridge is running with the previous config; restart it to apply", "warn");
       }
       addLog(group ? `Config saved (group: ${group.name})` : "Config saved (no group)", "success");
       return true;
@@ -250,13 +275,20 @@ function App() {
     }));
   };
 
+  const nativeDirect =
+    config.UPSTREAM_FORMAT === "response" &&
+    isNativeDeepseekUrl(config.RESPONSE_BASE_URL, "responses") &&
+    config.NATIVE_DEEPSEEK_VIA_BRIDGE !== "true";
+
   const toggleBridge = async () => {
+    if (nativeDirect) return;
     if (bridgeRunning) {
       await window.electronAPI.stopBridge();
-    } else {
-      if (!(await commitConfig(config))) return;
-      await window.electronAPI.startBridge();
+      return;
     }
+    if (!(await commitConfig(config))) return;
+    const result = await window.electronAPI.startBridge();
+    if (!result.ok) addLog(result.error || "Bridge start failed", "warn");
   };
 
   const handleLaunchCodex = async () => {
@@ -304,9 +336,13 @@ function App() {
 
       <div className={`actionbar ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <div className="actionbar-left">
-          <div className="status-badge" onClick={toggleBridge} title="Click to toggle bridge">
-            <span className={`status-dot ${bridgeRunning ? "ok" : "err"}`} />
-            {bridgeRunning ? "Running" : "Stopped"}
+          <div
+            className={`status-badge ${nativeDirect ? "disabled" : ""}`}
+            onClick={nativeDirect ? undefined : toggleBridge}
+            title={nativeDirect ? "官方直连模式不经过 Bridge" : "Click to toggle bridge"}
+          >
+            <span className={`status-dot ${nativeDirect || bridgeRunning ? "ok" : "err"}`} />
+            {nativeDirect ? "Direct" : bridgeRunning ? "Running" : "Stopped"}
           </div>
         </div>
         <div className="actionbar-right">

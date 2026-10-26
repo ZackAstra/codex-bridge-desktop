@@ -27,6 +27,8 @@ function cfg(overrides: Partial<ConfigData> = {}): ConfigData {
     RESPONSE_API_KEY: "",
     RESPONSE_BASE_URL: "",
     RESPONSE_MODEL: "",
+    NATIVE_DEEPSEEK_VIA_BRIDGE: "false",
+    NATIVE_DEEPSEEK_WEB_SEARCH: "",
     CODEX_CHAT_REASONING_MODE: "auto",
     CODEX_MODEL: "",
     CODEX_PROVIDER: "bridge",

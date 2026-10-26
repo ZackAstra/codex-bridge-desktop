@@ -8,6 +8,8 @@ export interface ConfigData {
   RESPONSE_API_KEY: string;
   RESPONSE_BASE_URL: string;
   RESPONSE_MODEL: string;
+  NATIVE_DEEPSEEK_VIA_BRIDGE: string;
+  NATIVE_DEEPSEEK_WEB_SEARCH: string;
   CODEX_CHAT_REASONING_MODE: string;
   CODEX_MODEL: string;
   CODEX_PROVIDER: string;
@@ -40,6 +42,37 @@ export const EMPTY_GROUPS: UpstreamGroupMap = {
   openai: [],
   response: [],
 };
+
+export const DEEPSEEK_WEB_SEARCH_MODEL = "deepseek-v4-pro";
+
+export type DeepseekUiProtocol = "responses" | "chat" | "anthropic";
+
+export function isNativeDeepseekUrl(
+  raw: string,
+  protocol: DeepseekUiProtocol = "responses",
+): boolean {
+  try {
+    const url = new URL(String(raw || "").trim());
+    if (url.protocol !== "https:" || url.port || url.username || url.password) return false;
+    if (url.hostname.toLowerCase() !== "api.deepseek.com") return false;
+    if (url.search || url.hash) return false;
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+    if (protocol === "anthropic") return path === "/anthropic";
+    if (protocol === "chat") return path === "/" || path === "/v1";
+    return ["/", "/v1", "/responses", "/v1/responses"].includes(path);
+  } catch {
+    return false;
+  }
+}
+
+export function canonicalDeepseekModel(raw: string): string | null {
+  const model = String(raw || "").trim().toLowerCase();
+  if (model === "deepseek-flash" || model === "deepseek-v4-pro") return model;
+  if (model === "deepseek-v4-flash" || model === "deepseek-v4-flash-vision-exp") {
+    return "deepseek-flash";
+  }
+  return null;
+}
 
 export const FORMAT_KEYS = {
   anthropic: {

@@ -145,6 +145,10 @@ describe("response upstream handler", () => {
 
     await handleResponse({ model: "m", reasoning: { effort: "xhigh" } });
     sent = JSON.parse(String((fetchMock.mock.calls[2][1] as RequestInit).body));
+    expect(sent.reasoning.effort).toBe("high");
+
+    await handleResponse({ model: "m", reasoning: { effort: "ultra" } });
+    sent = JSON.parse(String((fetchMock.mock.calls[3][1] as RequestInit).body));
     expect(sent.reasoning.effort).toBe("max");
   });
 
@@ -155,6 +159,7 @@ describe("response upstream handler", () => {
       ["https://api.deepseek.com/v1", "https://api.deepseek.com/responses"],
       ["https://api.deepseek.com/v1/", "https://api.deepseek.com/responses"],
       ["https://api.deepseek.com/responses", "https://api.deepseek.com/responses"],
+      ["https://api.deepseek.com/v1/responses", "https://api.deepseek.com/responses"],
     ];
     const fetchMock = vi.fn(async () => jsonResp(200, { status: "completed" }));
     vi.stubGlobal("fetch", fetchMock);
@@ -170,6 +175,27 @@ describe("response upstream handler", () => {
       expect(String(fetchMock.mock.calls[0][0])).toBe(expected);
     }
   });
+  it("does not treat http or lookalike hosts as native deepseek", async () => {
+    const fetchMock = vi.fn(async () => jsonResp(200, { status: "completed" }));
+    vi.stubGlobal("fetch", fetchMock);
+    for (const baseUrl of [
+      "http://api.deepseek.com/v1",
+      "https://foo.api.deepseek.com/v1",
+      "https://api.deepseek.com.evil.test/v1",
+    ]) {
+      loadSettings({
+        UPSTREAM_FORMAT: "response",
+        RESPONSE_API_KEY: "sk-test",
+        RESPONSE_BASE_URL: baseUrl,
+        RESPONSE_MODEL: "deepseek-flash",
+      });
+      fetchMock.mockClear();
+      await handleResponse({ model: "m", reasoning: { effort: "medium" } });
+      const sent = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
+      expect(sent.reasoning.effort).toBe("medium");
+    }
+  });
+
   it("keeps reasoning effort untouched for platform-level responses upstream", async () => {
     loadSettings({
       UPSTREAM_FORMAT: "response",

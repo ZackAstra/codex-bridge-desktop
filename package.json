@@ -1,13 +1,13 @@
 {
   "name": "codex-bridge-desktop",
   "private": true,
-  "version": "2.1.2",
+  "version": "2.2.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "npm run build:electron && concurrently -k \"node scripts/run-vite.cjs\" \"wait-on tcp:127.0.0.1:5173 && npx electron .\"",
     "build": "node node_modules/typescript/bin/tsc && vite build && npm run build:electron",
-    "build:electron": "node node_modules/typescript/bin/tsc --project electron/tsconfig.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "build:electron": "node node_modules/typescript/bin/tsc --project electron/tsconfig.json && node -e \"require('fs').writeFileSync('dist-electron/package.json', '{\\\"type\\\":\\\"commonjs\\\"}')\" && node scripts/copy-electron-assets.cjs",
     "build:icon": "node scripts/build-icon.cjs",
     "test": "vitest run",
     "test:bridge": "vitest run electron/bridge",

@@ -11,9 +11,9 @@ export const REASONING_MODE_OPTIONS: ReasoningModeOption[] = [
   {
     value: "auto",
     label: "自动推断",
-    summary: "根据 Base URL 与模型名自动选择映射",
+    summary: "仅原生 DeepSeek 域名自动套用官方规则",
     detail:
-      "对齐 cc-switch 平台/模型规则；不确定时推荐此项。会根据 OpenRouter、DeepSeek、SiliconFlow 等自动推断 thinking 与 effort 参数。",
+      "与 cc-switch 平台/模型规则对齐。Chat/Anthropic 上游仅在 Base URL 为 https://api.deepseek.com 时自动套用 DeepSeek 规则；其他域名需手动选择。OpenRouter、SiliconFlow 仍按平台规则推断。",
   },
   {
     value: "passthrough",
@@ -25,9 +25,9 @@ export const REASONING_MODE_OPTIONS: ReasoningModeOption[] = [
   {
     value: "deepseek",
     label: "DeepSeek",
-    summary: "xhigh/max→max，其余→high",
+    summary: "low/high/max 三档（xhigh→high，ultra→max）",
     detail:
-      "适用 DeepSeek 官方、Kimi 等三档 API。注入 thinking.type=enabled，并将 xhigh/max 映射为 max，其余映射为 high。",
+      "适用 DeepSeek 官方（Chat/Anthropic 经 Bridge）与支持三档的中转站。注入 thinking.type=enabled；minimal/low→low，medium/high/xhigh→high，max/ultra→max。",
   },
   {
     value: "openrouter",
